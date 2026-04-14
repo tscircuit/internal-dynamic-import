@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test"
 
-import importer, { getImportUrl, supportedModules } from "lib/index"
+import importer, {
+  getDynamicModuleRegistry,
+  getImportUrl,
+  registerDynamicModule,
+  supportedModules,
+} from "lib/index"
 
 test("supportedModules includes all requested entrypoints", () => {
   expect(supportedModules).toContain("circuit-json-to-gerber")
@@ -23,4 +28,51 @@ test("unsupported modules throw", () => {
 
 test("importer export is a function", () => {
   expect(typeof importer).toBe("function")
+})
+
+test("getDynamicModuleRegistry initializes the shared global registry", () => {
+  const originalRegistry = globalThis.tscircuitDynamicModules
+
+  try {
+    globalThis.tscircuitDynamicModules = undefined
+
+    const registry = getDynamicModuleRegistry()
+
+    expect(registry).toEqual({})
+    expect(globalThis.tscircuitDynamicModules === registry).toBe(true)
+  } finally {
+    globalThis.tscircuitDynamicModules = originalRegistry
+  }
+})
+
+test("getDynamicModuleRegistry reuses an existing shared global registry", () => {
+  const originalRegistry = globalThis.tscircuitDynamicModules
+  const existingRegistry = { existing: true }
+
+  try {
+    globalThis.tscircuitDynamicModules = existingRegistry
+
+    expect(getDynamicModuleRegistry()).toBe(existingRegistry)
+  } finally {
+    globalThis.tscircuitDynamicModules = originalRegistry
+  }
+})
+
+test("registerDynamicModule stores loaded modules by module name", () => {
+  const originalRegistry = globalThis.tscircuitDynamicModules
+  const gltfModule = { convertSceneToGLTF: () => null }
+
+  try {
+    globalThis.tscircuitDynamicModules = undefined
+
+    expect(registerDynamicModule("circuit-json-to-gltf", gltfModule)).toBe(
+      gltfModule,
+    )
+    expect(
+      globalThis.tscircuitDynamicModules?.["circuit-json-to-gltf"] ===
+        gltfModule,
+    ).toBe(true)
+  } finally {
+    globalThis.tscircuitDynamicModules = originalRegistry
+  }
 })
