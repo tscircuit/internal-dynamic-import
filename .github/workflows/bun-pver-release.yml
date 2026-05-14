@@ -27,6 +27,14 @@ jobs:
       - run: npm install -g pver
       - run: bun install --frozen-lockfile
       - run: bun run build
+      - name: Commit generated type bundles
+        run: |
+          if ! git diff --quiet -- lib/type-bundles; then
+            git config user.name "tscircuitbot"
+            git config user.email "githubbot@tscircuit.com"
+            git add lib/type-bundles
+            git commit -m "chore: sync generated type bundles"
+          fi
       - run: pver release --no-push-main
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
