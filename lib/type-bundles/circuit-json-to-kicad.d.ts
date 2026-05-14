@@ -49,6 +49,8 @@ interface ConverterContext {
     circuitJson: CircuitJson;
     kicadSch?: KicadSch;
     kicadPcb?: KicadPcb;
+    /** Scale factor used to convert circuit-json schematic units into KiCad mm */
+    kicadSchematicScaleFactor?: number;
     /** Circuit JSON to KiCad schematic transformation matrix */
     c2kMatSch?: Matrix;
     /** Circuit JSON to KiCad PCB transformation matrix */
@@ -146,6 +148,24 @@ interface CircuitJsonToKicadProOptions {
     schematicFilename?: string;
     pcbFilename?: string;
 }
+interface KicadProNetClass {
+    bus_width?: number;
+    clearance?: number;
+    diff_pair_gap?: number;
+    diff_pair_via_gap?: number;
+    diff_pair_width?: number;
+    line_style?: number;
+    microvia_diameter?: number;
+    microvia_drill?: number;
+    name?: string;
+    pcb_color?: string;
+    priority?: number;
+    schematic_color?: string;
+    track_width?: number;
+    via_diameter?: number;
+    via_drill?: number;
+    wire_width?: number;
+}
 interface KicadProProject {
     version: number;
     head: {
@@ -180,7 +200,7 @@ interface KicadProProject {
             version: number;
         };
         last_net_id: number;
-        classes: unknown[];
+        classes: KicadProNetClass[];
     };
     pcbnew: {
         page_layout_descr_file: string;
@@ -197,6 +217,33 @@ interface KicadProProject {
         meta: {
             version: number;
         };
+        design_settings: {
+            rules: {
+                allow_blind_buried_vias?: boolean;
+                allow_microvias?: boolean;
+                max_error?: number;
+                min_clearance?: number;
+                min_connection?: number;
+                min_copper_edge_clearance?: number;
+                min_groove_width?: number;
+                min_hole_clearance?: number;
+                min_hole_to_hole?: number;
+                min_microvia_diameter?: number;
+                min_microvia_drill?: number;
+                min_resolved_spokes?: number;
+                min_silk_clearance?: number;
+                min_text_height?: number;
+                min_text_thickness?: number;
+                min_through_hole_diameter?: number;
+                min_track_width?: number;
+                min_via_annular_width?: number;
+                min_via_diameter?: number;
+                solder_mask_clearance?: number;
+                solder_mask_min_width?: number;
+                solder_mask_to_copper_clearance?: number;
+                use_height_for_length_calcs?: boolean;
+            };
+        };
         last_opened_board: string;
     };
     sheets: [string, string][];
@@ -207,11 +254,35 @@ declare class CircuitJsonToKicadProConverter {
         circuitJson: CircuitJson;
     };
     private project;
+    private createBaseNetClass;
     constructor(circuitJson: CircuitJson, options?: CircuitJsonToKicadProOptions);
     runUntilFinished(): void;
     getOutput(): KicadProProject;
     getOutputString(): string;
 }
+
+type ModelFetchResponse = {
+    ok: boolean;
+    arrayBuffer: () => Promise<ArrayBuffer>;
+};
+interface LoadedKicad3dModelFile {
+    sourcePath: string;
+    outputPath: string;
+    content: Uint8Array;
+}
+interface Kicad3dModelLoadError {
+    sourcePath: string;
+    error: unknown;
+}
+interface ResolveAndLoadKicad3dModelFilesOptions {
+    model3dSourcePaths: string[];
+    projectName: string;
+    fetch: (modelPath: string) => Promise<ModelFetchResponse>;
+    readFile?: (modelPath: string) => Promise<ArrayBuffer | Uint8Array>;
+    onModelFile: (file: LoadedKicad3dModelFile) => void | Promise<void>;
+    onError?: (error: Kicad3dModelLoadError) => void | Promise<void>;
+}
+declare const resolveAndLoadKicad3dModelFiles: ({ model3dSourcePaths, projectName, fetch, readFile, onModelFile, onError, }: ResolveAndLoadKicad3dModelFilesOptions) => Promise<void>;
 
 interface CircuitJsonToKicadLibraryOptions {
     libraryName?: string;
@@ -318,4 +389,4 @@ declare class KicadLibraryConverter {
     getOutput(): KicadLibraryConverterOutput;
 }
 
-export { CircuitJsonToKicadLibraryConverter, CircuitJsonToKicadPcbConverter, CircuitJsonToKicadProConverter, CircuitJsonToKicadSchConverter, type FootprintEntry, KicadLibraryConverter, type KicadLibraryConverterOptions, type KicadLibraryConverterOutput, type KicadLibraryOutput, type SymbolEntry };
+export { CircuitJsonToKicadLibraryConverter, CircuitJsonToKicadPcbConverter, CircuitJsonToKicadProConverter, CircuitJsonToKicadSchConverter, type FootprintEntry, type Kicad3dModelLoadError, KicadLibraryConverter, type KicadLibraryConverterOptions, type KicadLibraryConverterOutput, type KicadLibraryOutput, type LoadedKicad3dModelFile, type ResolveAndLoadKicad3dModelFilesOptions, type SymbolEntry, resolveAndLoadKicad3dModelFiles };
