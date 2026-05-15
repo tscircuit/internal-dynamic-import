@@ -19,4 +19,6 @@ async function main() {
 }
 ```
 
-Runtime imports are resolved through jsDelivr's bundled ESM endpoint at `https://esm.run/...`, so omitting a version uses the latest published package and adding `@...` preserves the requested version/tag.
+Runtime imports try jscdn first through `https://jscdn.tscircuit.com/.../+esm`
+and fall back to `https://esm.run/...` if the jscdn import fails. Omitting a
+version uses `latest`; adding `@...` preserves the requested version/tag.

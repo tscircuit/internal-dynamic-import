@@ -26,13 +26,33 @@ export type {
 const supportedModuleSet = new Set<string>(supportedModules)
 
 export const getImportUrl = (specifier: string): string => {
+  assertSupportedModule(specifier)
+
+  return getJscdnImportUrl(specifier)
+}
+
+export const getImportUrls = (specifier: string): string[] => {
+  assertSupportedModule(specifier)
+
+  return [getJscdnImportUrl(specifier), `https://esm.run/${specifier}`]
+}
+
+function getJscdnImportUrl(specifier: string): string {
+  const moduleName = getModuleName(specifier)
+  const version =
+    specifier.length === moduleName.length
+      ? "latest"
+      : specifier.slice(moduleName.length + 1)
+
+  return `https://jscdn.tscircuit.com/${moduleName}/${version}/+esm`
+}
+
+function assertSupportedModule(specifier: string) {
   const moduleName = getModuleName(specifier)
 
   if (!supportedModuleSet.has(moduleName)) {
     throw new Error(`Unsupported module: ${specifier}`)
   }
-
-  return `https://esm.run/${specifier}`
 }
 
 async function importer<TSpecifier extends SupportedModuleSpecifier>(
@@ -40,8 +60,18 @@ async function importer<TSpecifier extends SupportedModuleSpecifier>(
 ): Promise<SupportedModuleMap[StripVersion<TSpecifier>]>
 async function importer(specifier: string): Promise<unknown>
 async function importer(specifier: string): Promise<unknown> {
-  const mod = await import(/* @vite-ignore */ getImportUrl(specifier))
-  return registerDynamicModule(getModuleName(specifier), mod)
+  let lastError: unknown
+
+  for (const importUrl of getImportUrls(specifier)) {
+    try {
+      const mod = await import(/* @vite-ignore */ importUrl)
+      return registerDynamicModule(getModuleName(specifier), mod)
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError
 }
 
 export default importer

@@ -3,6 +3,7 @@ import { expect, test } from "bun:test"
 import importer, {
   getDynamicModuleRegistry,
   getImportUrl,
+  getImportUrls,
   registerDynamicModule,
   supportedModules,
 } from "lib/index"
@@ -13,17 +14,29 @@ test("supportedModules includes all requested entrypoints", () => {
   expect(supportedModules).toContain("circuit-to-svg")
 })
 
-test("getImportUrl uses jsDelivr bundled ESM imports", () => {
+test("getImportUrl uses jscdn bundled ESM imports", () => {
   expect(getImportUrl("circuit-json-to-gerber")).toBe(
-    "https://esm.run/circuit-json-to-gerber",
+    "https://jscdn.tscircuit.com/circuit-json-to-gerber/latest/+esm",
   )
   expect(getImportUrl("circuit-json-to-kicad@0.0.91")).toBe(
-    "https://esm.run/circuit-json-to-kicad@0.0.91",
+    "https://jscdn.tscircuit.com/circuit-json-to-kicad/0.0.91/+esm",
   )
+})
+
+test("getImportUrls uses jscdn first and esm.run fallback", () => {
+  expect(getImportUrls("circuit-json-to-gerber")).toEqual([
+    "https://jscdn.tscircuit.com/circuit-json-to-gerber/latest/+esm",
+    "https://esm.run/circuit-json-to-gerber",
+  ])
+  expect(getImportUrls("circuit-json-to-kicad@0.0.91")).toEqual([
+    "https://jscdn.tscircuit.com/circuit-json-to-kicad/0.0.91/+esm",
+    "https://esm.run/circuit-json-to-kicad@0.0.91",
+  ])
 })
 
 test("unsupported modules throw", () => {
   expect(() => getImportUrl("not-supported")).toThrow("Unsupported module")
+  expect(() => getImportUrls("not-supported")).toThrow("Unsupported module")
 })
 
 test("importer export is a function", () => {
