@@ -183,7 +183,32 @@ declare function loadSTL({ url, transform, projectBaseUrl, authHeaders, }: {
 }): Promise<STLMesh>;
 declare function clearSTLCache(): void;
 
+declare const CAMERA_PRESET_DIRECTIONS: {
+    readonly isometric: readonly [-0.7, 1.2, -0.8];
+    readonly top_down: readonly [0, 1, 0.001];
+    readonly bottom_up: readonly [0, -1, 0.001];
+    readonly left_side: readonly [-1, 0, 0];
+    readonly right_side: readonly [1, 0, 0];
+    readonly front: readonly [0, 0, 1];
+    readonly back: readonly [0, 0, -1];
+};
+type CameraPreset = keyof typeof CAMERA_PRESET_DIRECTIONS;
 interface CameraFitOptions {
+    /**
+     * Named preset view. Useful for stable top/bottom/side snapshots.
+     *
+     * `top_down`/`bottom_up` use a tiny hidden tilt because the downstream
+     * renderer currently assumes a fixed up-vector and collapses on a perfectly
+     * vertical view.
+     */
+    preset?: CameraPreset;
+    /**
+     * Approximate an orthographic view using a very narrow perspective FOV.
+     *
+     * This is a compatibility hack for renderers that only expose perspective
+     * cameras. It is not a true orthographic projection.
+     */
+    ortho?: boolean;
     /**
      * Target-to-camera direction vector used for solved camera position.
      */
@@ -206,10 +231,7 @@ interface CameraFitOptions {
      */
     sensorHeight?: number;
 }
-/**
- * Calculate optimal camera position for PCB viewing based on circuit dimensions
- */
-declare function getBestCameraPosition(circuitJson: CircuitJson): {
+declare function getBestCameraPosition(circuitJson: CircuitJson, opts?: CameraFitOptions): {
     camPos: readonly [number, number, number];
     lookAt: readonly [number, number, number];
     fov: number;
@@ -248,4 +270,4 @@ interface BRepShape {
     is_negative?: boolean;
 }
 
-export { type BRepShape, type BoardRenderOptions, type BoundingBox, type Box3D, COORDINATE_TRANSFORMS, type Camera3D, type CameraFitOptions, type CircuitTo3DOptions, type Color, type ConversionOptions, type CoordinateTransformConfig, type GLTFExportOptions, type LayerRef, type Light3D, type OBJMaterial, type OBJMesh, type Point, type Point3, type STLMesh, type Scene3D, type Size3, type Triangle, applyCoordinateTransform, clearGLBCache, clearOBJCache, clearSTLCache, convertCircuitJsonTo3D, convertCircuitJsonToGltf, convertSceneToGLTF, getBestCameraPosition, loadGLB, loadOBJ, loadSTL, renderBoardLayer, renderBoardTextures, transformTriangles };
+export { type BRepShape, type BoardRenderOptions, type BoundingBox, type Box3D, CAMERA_PRESET_DIRECTIONS, COORDINATE_TRANSFORMS, type Camera3D, type CameraFitOptions, type CameraPreset, type CircuitTo3DOptions, type Color, type ConversionOptions, type CoordinateTransformConfig, type GLTFExportOptions, type LayerRef, type Light3D, type OBJMaterial, type OBJMesh, type Point, type Point3, type STLMesh, type Scene3D, type Size3, type Triangle, applyCoordinateTransform, clearGLBCache, clearOBJCache, clearSTLCache, convertCircuitJsonTo3D, convertCircuitJsonToGltf, convertSceneToGLTF, getBestCameraPosition, loadGLB, loadOBJ, loadSTL, renderBoardLayer, renderBoardTextures, transformTriangles };
