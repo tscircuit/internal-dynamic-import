@@ -41,7 +41,7 @@
     "circuit-json-to-simple-3d": "0.0.9",
     "circuit-json-to-spice": "0.0.34",
     "circuit-json-to-step": "0.0.19",
-    "circuit-json-to-tscircuit": "0.0.14",
+    "circuit-json-to-tscircuit": "^0.0.40",
     "circuit-to-canvas": "0.0.94",
     "circuit-to-svg": "0.0.339",
     "kicad-to-circuit-json": "0.0.98",
