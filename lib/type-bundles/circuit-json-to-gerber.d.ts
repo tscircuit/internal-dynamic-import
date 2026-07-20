@@ -1,5 +1,5 @@
 import { AnyZodObject, z } from 'zod';
-import { AnyCircuitElement } from 'circuit-json';
+import { LayerRef, AnyCircuitElement } from 'circuit-json';
 
 interface ExcellonDrillCommandDef<K extends string, T extends AnyZodObject | z.ZodIntersection<any, any>> {
     command_code: K;
@@ -79,8 +79,8 @@ declare const excellon_drill_command_map: {
         command_code: z.ZodDefault<z.ZodLiteral<"aper_function_header">>;
         is_plated: z.ZodBoolean;
     }, "strip", z.ZodTypeAny, {
-        is_plated: boolean;
         command_code: "aper_function_header";
+        is_plated: boolean;
     }, {
         is_plated: boolean;
         command_code?: "aper_function_header" | undefined;
@@ -211,11 +211,20 @@ type AnyExcellonDrillCommand = z.infer<(typeof excellon_drill_command_map)[keyof
 
 declare const stringifyExcellonDrill: (commands: Array<AnyExcellonDrillCommand>) => string;
 
-declare const convertSoupToExcellonDrillCommands: ({ circuitJson, is_plated, flip_y_axis, }: {
+type DrillLayerSpan = {
+    from_layer: LayerRef;
+    to_layer: LayerRef;
+};
+declare const convertSoupToExcellonDrillCommands: ({ circuitJson, is_plated, flip_y_axis, layer_span, }: {
     circuitJson: Array<AnyCircuitElement>;
     is_plated: boolean;
     flip_y_axis?: boolean;
+    layer_span?: DrillLayerSpan;
 }) => Array<AnyExcellonDrillCommand>;
+declare const convertSoupToExcellonDrillCommandLayers: ({ circuitJson, flip_y_axis, }: {
+    circuitJson: Array<AnyCircuitElement>;
+    flip_y_axis?: boolean;
+}) => Record<string, Array<AnyExcellonDrillCommand>>;
 
 declare class ExcellonDrillBuilder {
     commands: Array<AnyExcellonDrillCommand>;
@@ -634,7 +643,14 @@ declare class GerberBuilder {
     build(): Array<AnyGerberCommand>;
 }
 
+declare const stringifyGerberCommandLayers: (commandLayers: Record<string, AnyGerberCommand[]>) => Record<string, string>;
+
+declare const stringifyGerberCommand: (command: AnyGerberCommand) => string;
+
+declare const stringifyGerberCommands: (commands: AnyGerberCommand[]) => string;
+
 type LayerToGerberCommandsMap = {
+    [key: string]: AnyGerberCommand[];
     F_Cu: AnyGerberCommand[];
     F_SilkScreen: AnyGerberCommand[];
     F_Mask: AnyGerberCommand[];
@@ -645,19 +661,12 @@ type LayerToGerberCommandsMap = {
     B_Paste: AnyGerberCommand[];
     Edge_Cuts: AnyGerberCommand[];
 };
-type GerberLayerName = keyof LayerToGerberCommandsMap;
-
-declare const stringifyGerberCommandLayers: (commandLayers: Record<GerberLayerName, AnyGerberCommand[]>) => Record<GerberLayerName, string>;
-
-declare const stringifyGerberCommand: (command: AnyGerberCommand) => string;
-
-declare const stringifyGerberCommands: (commands: AnyGerberCommand[]) => string;
 
 /**
- * Converts tscircuit soup to arrays of Gerber commands for each layer
+ * Converts Circuit JSON to arrays of Gerber commands for each layer
  */
-declare const convertSoupToGerberCommands: (soup: AnyCircuitElement[], opts?: {
+declare const convertSoupToGerberCommands: (circuitJson: AnyCircuitElement[], opts?: {
     flip_y_axis?: boolean;
 }) => LayerToGerberCommandsMap;
 
-export { convertSoupToExcellonDrillCommands, convertSoupToGerberCommands, excellonDrill, gerberBuilder, stringifyExcellonDrill, stringifyGerberCommand, stringifyGerberCommandLayers, stringifyGerberCommands };
+export { type DrillLayerSpan, convertSoupToExcellonDrillCommandLayers, convertSoupToExcellonDrillCommands, convertSoupToGerberCommands, excellonDrill, gerberBuilder, stringifyExcellonDrill, stringifyGerberCommand, stringifyGerberCommandLayers, stringifyGerberCommands };
