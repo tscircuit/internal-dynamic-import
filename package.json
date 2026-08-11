@@ -1,6 +1,6 @@
 {
   "name": "@tscircuit/internal-dynamic-import",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "description": "Type-safe dynamic imports for selected tscircuit packages via jscdn and fallback to jsDelivr",
   "type": "module",
   "main": "./dist/index.js",
