@@ -1,4 +1,4 @@
-import { AnyCircuitElement, PcbRenderLayer, NinePointAnchor, PcbPlatedHole, PCBVia, PcbHole, PcbSmtPad, PcbTrace, PcbVia, PcbBoard, PcbPanel, PcbSilkscreenText, PcbSilkscreenRect, PcbSilkscreenCircle, PcbSilkscreenLine, PcbSilkscreenPath, PcbSilkscreenPill, PcbSilkscreenOval, PcbCutout, PCBKeepout, PcbCopperPour, PcbCopperText, PcbFabricationNoteText, PcbFabricationNoteRect, PcbNoteRect, PcbFabricationNotePath, PcbNotePath, PcbNoteText, PcbNoteDimension, PcbFabricationNoteDimension, PcbCourtyardCircle } from 'circuit-json';
+import { LayerRef, AnyCircuitElement, PcbRenderLayer, Ring, NinePointAnchor, PcbPlatedHole, PCBVia, PcbHole, PcbSmtPad, PcbVia, PcbCutout, PcbSolderPaste, PcbTrace, PcbBoard, PcbPanel, PcbSilkscreenText, PcbSilkscreenRect, PcbSilkscreenCircle, PcbSilkscreenGraphic, PcbSilkscreenLine, PcbSilkscreenPath, PcbSilkscreenPill, PcbSilkscreenOval, PCBKeepout, PcbCopperPour, PcbCopperText, PcbFabricationNoteText, PcbFabricationNoteRect, PcbNoteRect, PcbFabricationNotePath, PcbNotePath, PcbNoteText, PcbNoteDimension, PcbFabricationNoteDimension, PcbCourtyardCircle } from 'circuit-json';
 import { Matrix } from 'transformation-matrix';
 
 /**
@@ -18,7 +18,7 @@ interface CanvasContext {
     moveTo(x: number, y: number): void;
     save(): void;
     restore(): void;
-    clip(): void;
+    clip(fillRule?: "nonzero" | "evenodd"): void;
     translate(x: number, y: number): void;
     rotate(angle: number): void;
     scale(x: number, y: number): void;
@@ -44,7 +44,7 @@ interface CanvasContext {
     font: string;
     textAlign: "start" | "end" | "left" | "right" | "center";
 }
-type CopperLayerName = "top" | "bottom" | "inner1" | "inner2" | "inner3" | "inner4" | "inner5" | "inner6";
+type CopperLayerName = LayerRef;
 type CopperColorMap = Record<CopperLayerName, string> & {
     [layer: string]: string;
 };
@@ -77,7 +77,10 @@ interface PcbColorMap {
         top: string;
         bottom: string;
     };
-    keepout: string;
+    keepout: {
+        top: string;
+        bottom: string;
+    };
     fabricationNote: string;
 }
 declare const DEFAULT_PCB_COLOR_MAP: PcbColorMap;
@@ -98,8 +101,20 @@ interface DrawContext {
 
 interface DrawElementsOptions {
     layers?: PcbRenderLayer[];
+    /**
+     * Elements used only to find copper pours when clipping traces. This is
+     * useful when `elements` is a filtered subset, such as a trace-only render
+     * pass in an interactive viewer. Defaults to `elements`.
+     */
+    clipContextElements?: AnyCircuitElement[];
     /** Whether to render the soldermask layer. Defaults to false. */
     drawSoldermask?: boolean;
+    /** Whether to render pcb_solder_paste elements. Defaults to false. */
+    drawSolderPaste?: boolean;
+    /** Render top solder-paste elements when drawSolderPaste is enabled. Defaults to true if both layer flags are unset. */
+    drawSolderPasteTop?: boolean;
+    /** Render bottom solder-paste elements when drawSolderPaste is enabled. */
+    drawSolderPasteBottom?: boolean;
     /** Render top soldermask layer when drawSoldermask is enabled. Defaults to true if both layer flags are unset. */
     drawSoldermaskTop?: boolean;
     /** Render bottom soldermask layer when drawSoldermask is enabled. */
@@ -110,6 +125,8 @@ interface DrawElementsOptions {
     minBoardOutlineStrokePx?: number;
     /** Whether to render pcb_note elements. Defaults to true. */
     showPcbNotes?: boolean;
+    /** Clear drill holes and cutouts from the canvas instead of painting them with the drill color. Defaults to false. */
+    clearDrillHoles?: boolean;
 }
 interface CanvasLike {
     getContext(contextId: "2d"): CanvasContext | null;
@@ -122,7 +139,39 @@ declare class CircuitToCanvasDrawer {
     configure(config: DrawerConfig): void;
     setCameraBounds(bounds: CameraBounds): void;
     drawElements(elements: AnyCircuitElement[], options?: DrawElementsOptions): void;
+    private clearDrillHoles;
 }
+
+interface DrawArrowParams {
+    ctx: CanvasContext;
+    x: number;
+    y: number;
+    angle: number;
+    arrowSize: number;
+    color: string;
+    strokeWidth: number;
+}
+/**
+ * Draw an arrow at a point along a line
+ */
+declare function drawArrow(params: DrawArrowParams): void;
+
+interface BrepShape {
+    outer_ring: Ring;
+    inner_rings?: Ring[];
+}
+interface AddBrepRingToPathParams {
+    ctx: CanvasContext;
+    ring: Ring;
+    realToCanvasMat: Matrix;
+}
+declare function addBrepRingToPath({ ctx, ring, realToCanvasMat, }: AddBrepRingToPathParams): void;
+interface AddBrepShapeToPathParams {
+    ctx: CanvasContext;
+    shape: BrepShape;
+    realToCanvasMat: Matrix;
+}
+declare function addBrepShapeToPath({ ctx, shape, realToCanvasMat, }: AddBrepShapeToPathParams): void;
 
 interface DrawCircleParams {
     ctx: CanvasContext;
@@ -139,23 +188,49 @@ interface DrawCircleParams {
 }
 declare function drawCircle(params: DrawCircleParams): void;
 
-interface DrawRectParams {
+interface DrawDimensionLineParams {
     ctx: CanvasContext;
-    center: {
+    from: {
         x: number;
         y: number;
     };
-    width: number;
-    height: number;
-    fill?: string;
+    to: {
+        x: number;
+        y: number;
+    };
     realToCanvasMat: Matrix;
-    borderRadius?: number;
-    ccwRotationDegrees?: number;
-    stroke?: string;
+    color: string;
+    fontSize: number;
+    arrowSize?: number;
     strokeWidth?: number;
-    isStrokeDashed?: boolean;
+    text?: string;
+    textRotation?: number;
+    offset?: {
+        distance: number;
+        direction: {
+            x: number;
+            y: number;
+        };
+    };
 }
-declare function drawRect(params: DrawRectParams): void;
+declare function drawDimensionLine(params: DrawDimensionLineParams): void;
+
+interface DrawLineParams {
+    ctx: CanvasContext;
+    start: {
+        x: number;
+        y: number;
+    };
+    end: {
+        x: number;
+        y: number;
+    };
+    strokeWidth: number;
+    stroke: string;
+    realToCanvasMat: Matrix;
+    lineCap?: "butt" | "round" | "square";
+}
+declare function drawLine(params: DrawLineParams): void;
 
 interface DrawOvalParams {
     ctx: CanvasContext;
@@ -172,6 +247,21 @@ interface DrawOvalParams {
     rotation?: number;
 }
 declare function drawOval(params: DrawOvalParams): void;
+
+interface DrawPathParams {
+    ctx: CanvasContext;
+    points: Array<{
+        x: number;
+        y: number;
+    }>;
+    fill?: string;
+    stroke?: string;
+    strokeWidth?: number;
+    minStrokePx?: number;
+    realToCanvasMat: Matrix;
+    closePath?: boolean;
+}
+declare function drawPath(params: DrawPathParams): void;
 
 interface DrawPillParams {
     ctx: CanvasContext;
@@ -200,78 +290,24 @@ interface DrawPolygonParams {
 }
 declare function drawPolygon(params: DrawPolygonParams): void;
 
-interface DrawLineParams {
+interface DrawRectParams {
     ctx: CanvasContext;
-    start: {
+    center: {
         x: number;
         y: number;
     };
-    end: {
-        x: number;
-        y: number;
-    };
-    strokeWidth: number;
-    stroke: string;
-    realToCanvasMat: Matrix;
-    lineCap?: "butt" | "round" | "square";
-}
-declare function drawLine(params: DrawLineParams): void;
-
-interface DrawPathParams {
-    ctx: CanvasContext;
-    points: Array<{
-        x: number;
-        y: number;
-    }>;
+    width: number;
+    height: number;
     fill?: string;
+    realToCanvasMat: Matrix;
+    borderRadius?: number;
+    ccwRotationDegrees?: number;
     stroke?: string;
     strokeWidth?: number;
-    minStrokePx?: number;
-    realToCanvasMat: Matrix;
-    closePath?: boolean;
+    isStrokeDashed?: boolean;
+    lineJoin?: CanvasLineJoin;
 }
-declare function drawPath(params: DrawPathParams): void;
-
-interface DrawArrowParams {
-    ctx: CanvasContext;
-    x: number;
-    y: number;
-    angle: number;
-    arrowSize: number;
-    color: string;
-    strokeWidth: number;
-}
-/**
- * Draw an arrow at a point along a line
- */
-declare function drawArrow(params: DrawArrowParams): void;
-
-interface DrawDimensionLineParams {
-    ctx: CanvasContext;
-    from: {
-        x: number;
-        y: number;
-    };
-    to: {
-        x: number;
-        y: number;
-    };
-    realToCanvasMat: Matrix;
-    color: string;
-    fontSize: number;
-    arrowSize?: number;
-    strokeWidth?: number;
-    text?: string;
-    textRotation?: number;
-    offset?: {
-        distance: number;
-        direction: {
-            x: number;
-            y: number;
-        };
-    };
-}
-declare function drawDimensionLine(params: DrawDimensionLineParams): void;
+declare function drawRect(params: DrawRectParams): void;
 
 type AlphabetLayout = {
     width: number;
@@ -317,7 +353,7 @@ interface DrawTextParams {
 declare function drawText(params: DrawTextParams): void;
 
 type AnchorAlignment = NinePointAnchor;
-declare function getTextStartPosition(alignment: NinePointAnchor, layout: AlphabetLayout): {
+declare function getTextStartPosition(alignment: NinePointAnchor, layout: AlphabetLayout, fontSize: number): {
     x: number;
     y: number;
 };
@@ -329,7 +365,7 @@ interface DrawPcbPlatedHoleParams {
     colorMap: PcbColorMap;
     soldermaskMargin?: number;
     drawSoldermask?: boolean;
-    layer?: "top" | "bottom";
+    layer?: LayerRef;
 }
 declare function drawPcbPlatedHole(params: DrawPcbPlatedHoleParams): void;
 
@@ -338,7 +374,7 @@ interface DrawPcbViaParams {
     via: PCBVia;
     realToCanvasMat: Matrix;
     colorMap: PcbColorMap;
-    layer?: "top" | "bottom";
+    layer?: LayerRef;
 }
 declare function drawPcbVia(params: DrawPcbViaParams): void;
 
@@ -357,8 +393,19 @@ interface DrawPcbSmtPadParams {
     pad: PcbSmtPad;
     realToCanvasMat: Matrix;
     colorMap: PcbColorMap;
+    holes?: PcbHole[];
+    platedHoles?: PcbPlatedHole[];
+    vias?: PcbVia[];
+    cutouts?: PcbCutout[];
 }
 declare function drawPcbSmtPad(params: DrawPcbSmtPadParams): void;
+
+interface DrawPcbSolderPasteParams {
+    ctx: CanvasContext;
+    solderPaste: PcbSolderPaste;
+    realToCanvasMat: Matrix;
+}
+declare function drawPcbSolderPaste(params: DrawPcbSolderPasteParams): void;
 
 /**
  * Draws a soldermask ring for rectangular shapes with negative margin
@@ -405,6 +452,7 @@ interface DrawPcbTraceParams {
     colorMap: PcbColorMap;
     vias?: PcbVia[];
     platedHoles?: PcbPlatedHole[];
+    layer?: LayerRef;
 }
 declare function drawPcbTrace(params: DrawPcbTraceParams): void;
 
@@ -450,6 +498,14 @@ interface DrawPcbSilkscreenCircleParams {
     colorMap: PcbColorMap;
 }
 declare function drawPcbSilkscreenCircle(params: DrawPcbSilkscreenCircleParams): void;
+
+interface DrawPcbSilkscreenGraphicParams {
+    ctx: CanvasContext;
+    graphic: PcbSilkscreenGraphic;
+    realToCanvasMat: Matrix;
+    colorMap: PcbColorMap;
+}
+declare function drawPcbSilkscreenGraphic(params: DrawPcbSilkscreenGraphicParams): void;
 
 interface DrawPcbSilkscreenLineParams {
     ctx: CanvasContext;
@@ -587,4 +643,4 @@ interface DrawPcbCourtyardCircleParams {
 }
 declare function drawPcbCourtyardCircle(params: DrawPcbCourtyardCircleParams): void;
 
-export { type AlphabetLayout, type AnchorAlignment, type CameraBounds, type CanvasContext, CircuitToCanvasDrawer, type CopperColorMap, type CopperLayerName, DEFAULT_PCB_COLOR_MAP, type DrawArrowParams, type DrawCircleParams, type DrawContext, type DrawDimensionLineParams, type DrawElementsOptions, type DrawLineParams, type DrawOvalParams, type DrawPathParams, type DrawPcbBoardParams, type DrawPcbCopperPourParams, type DrawPcbCopperTextParams, type DrawPcbCourtyardCircleParams, type DrawPcbCutoutParams, type DrawPcbFabricationNoteDimensionParams, type DrawPcbFabricationNotePathParams, type DrawPcbFabricationNoteRectParams, type DrawPcbFabricationNoteTextParams, type DrawPcbHoleParams, type DrawPcbKeepoutParams, type DrawPcbNoteDimensionParams, type DrawPcbNotePathParams, type DrawPcbNoteRectParams, type DrawPcbNoteTextParams, type DrawPcbPanelParams, type DrawPcbPlatedHoleParams, type DrawPcbSilkscreenCircleParams, type DrawPcbSilkscreenLineParams, type DrawPcbSilkscreenOvalParams, type DrawPcbSilkscreenPathParams, type DrawPcbSilkscreenPillParams, type DrawPcbSilkscreenRectParams, type DrawPcbSilkscreenTextParams, type DrawPcbSmtPadParams, type DrawPcbTraceParams, type DrawPcbViaParams, type DrawPillParams, type DrawPolygonParams, type DrawRectParams, type DrawTextParams, type DrawerConfig, type PcbColorMap, drawArrow, drawCircle, drawDimensionLine, drawLine, drawOval, drawPath, drawPcbBoard, drawPcbCopperPour, drawPcbCopperText, drawPcbCourtyardCircle, drawPcbCutout, drawPcbFabricationNoteDimension, drawPcbFabricationNotePath, drawPcbFabricationNoteRect, drawPcbFabricationNoteText, drawPcbHole, drawPcbKeepout, drawPcbNoteDimension, drawPcbNotePath, drawPcbNoteRect, drawPcbNoteText, drawPcbPanelElement, drawPcbPlatedHole, drawPcbSilkscreenCircle, drawPcbSilkscreenLine, drawPcbSilkscreenOval, drawPcbSilkscreenPath, drawPcbSilkscreenPill, drawPcbSilkscreenRect, drawPcbSilkscreenText, drawPcbSmtPad, drawPcbTrace, drawPcbVia, drawPill, drawPolygon, drawRect, drawSoldermaskRingForCircle, drawSoldermaskRingForOval, drawSoldermaskRingForPill, drawSoldermaskRingForRect, drawText, getAlphabetLayout, getTextStartPosition, strokeAlphabetText };
+export { type AddBrepRingToPathParams, type AddBrepShapeToPathParams, type AlphabetLayout, type AnchorAlignment, type BrepShape, type CameraBounds, type CanvasContext, CircuitToCanvasDrawer, type CopperColorMap, type CopperLayerName, DEFAULT_PCB_COLOR_MAP, type DrawArrowParams, type DrawCircleParams, type DrawContext, type DrawDimensionLineParams, type DrawElementsOptions, type DrawLineParams, type DrawOvalParams, type DrawPathParams, type DrawPcbBoardParams, type DrawPcbCopperPourParams, type DrawPcbCopperTextParams, type DrawPcbCourtyardCircleParams, type DrawPcbCutoutParams, type DrawPcbFabricationNoteDimensionParams, type DrawPcbFabricationNotePathParams, type DrawPcbFabricationNoteRectParams, type DrawPcbFabricationNoteTextParams, type DrawPcbHoleParams, type DrawPcbKeepoutParams, type DrawPcbNoteDimensionParams, type DrawPcbNotePathParams, type DrawPcbNoteRectParams, type DrawPcbNoteTextParams, type DrawPcbPanelParams, type DrawPcbPlatedHoleParams, type DrawPcbSilkscreenCircleParams, type DrawPcbSilkscreenGraphicParams, type DrawPcbSilkscreenLineParams, type DrawPcbSilkscreenOvalParams, type DrawPcbSilkscreenPathParams, type DrawPcbSilkscreenPillParams, type DrawPcbSilkscreenRectParams, type DrawPcbSilkscreenTextParams, type DrawPcbSmtPadParams, type DrawPcbSolderPasteParams, type DrawPcbTraceParams, type DrawPcbViaParams, type DrawPillParams, type DrawPolygonParams, type DrawRectParams, type DrawTextParams, type DrawerConfig, type PcbColorMap, addBrepRingToPath, addBrepShapeToPath, drawArrow, drawCircle, drawDimensionLine, drawLine, drawOval, drawPath, drawPcbBoard, drawPcbCopperPour, drawPcbCopperText, drawPcbCourtyardCircle, drawPcbCutout, drawPcbFabricationNoteDimension, drawPcbFabricationNotePath, drawPcbFabricationNoteRect, drawPcbFabricationNoteText, drawPcbHole, drawPcbKeepout, drawPcbNoteDimension, drawPcbNotePath, drawPcbNoteRect, drawPcbNoteText, drawPcbPanelElement, drawPcbPlatedHole, drawPcbSilkscreenCircle, drawPcbSilkscreenGraphic, drawPcbSilkscreenLine, drawPcbSilkscreenOval, drawPcbSilkscreenPath, drawPcbSilkscreenPill, drawPcbSilkscreenRect, drawPcbSilkscreenText, drawPcbSmtPad, drawPcbSolderPaste, drawPcbTrace, drawPcbVia, drawPill, drawPolygon, drawRect, drawSoldermaskRingForCircle, drawSoldermaskRingForOval, drawSoldermaskRingForPill, drawSoldermaskRingForRect, drawText, getAlphabetLayout, getTextStartPosition, strokeAlphabetText };
