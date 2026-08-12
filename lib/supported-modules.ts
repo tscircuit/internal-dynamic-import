@@ -2,6 +2,7 @@ import type * as CircuitJsonTo3dPngModule from "./type-bundles/circuit-json-to-3
 import type * as CircuitJsonToBomCsvModule from "./type-bundles/circuit-json-to-bom-csv"
 import type * as CircuitJsonToBpcModule from "./type-bundles/circuit-json-to-bpc"
 import type * as CircuitJsonToConnectivityMapModule from "./type-bundles/circuit-json-to-connectivity-map"
+import type * as CircuitJsonToFdmComponentBoxModule from "./type-bundles/circuit-json-to-fdm-component-box"
 import type * as CircuitJsonToGerberModule from "./type-bundles/circuit-json-to-gerber"
 import type * as CircuitJsonToGltfModule from "./type-bundles/circuit-json-to-gltf"
 import type * as CircuitJsonToKicadModule from "./type-bundles/circuit-json-to-kicad"
@@ -21,6 +22,7 @@ export const supportedModules = [
   "circuit-json-to-bom-csv",
   "circuit-json-to-bpc",
   "circuit-json-to-connectivity-map",
+  "circuit-json-to-fdm-component-box",
   "circuit-json-to-gerber",
   "circuit-json-to-gltf",
   "circuit-json-to-kicad",
@@ -46,6 +48,7 @@ export interface SupportedModuleMap {
   "circuit-json-to-bom-csv": typeof CircuitJsonToBomCsvModule
   "circuit-json-to-bpc": typeof CircuitJsonToBpcModule
   "circuit-json-to-connectivity-map": typeof CircuitJsonToConnectivityMapModule
+  "circuit-json-to-fdm-component-box": typeof CircuitJsonToFdmComponentBoxModule
   "circuit-json-to-gerber": typeof CircuitJsonToGerberModule
   "circuit-json-to-gltf": typeof CircuitJsonToGltfModule
   "circuit-json-to-kicad": typeof CircuitJsonToKicadModule

@@ -11,6 +11,7 @@ import importer, {
 test("supportedModules includes all requested entrypoints", () => {
   expect(supportedModules).toContain("circuit-json-to-3d-png")
   expect(supportedModules).toContain("circuit-json-to-gerber")
+  expect(supportedModules).toContain("circuit-json-to-fdm-component-box")
   expect(supportedModules).toContain("circuit-to-canvas")
   expect(supportedModules).toContain("circuit-to-svg")
   expect(supportedModules).toContain("kicad-to-circuit-json")
@@ -22,6 +23,9 @@ test("getImportUrl uses jscdn bundled ESM imports", () => {
   )
   expect(getImportUrl("circuit-json-to-gerber")).toBe(
     "https://jscdn.tscircuit.com/circuit-json-to-gerber/latest/+esm",
+  )
+  expect(getImportUrl("circuit-json-to-fdm-component-box")).toBe(
+    "https://jscdn.tscircuit.com/circuit-json-to-fdm-component-box/latest/+esm",
   )
   expect(getImportUrl("circuit-json-to-kicad@0.0.91")).toBe(
     "https://jscdn.tscircuit.com/circuit-json-to-kicad/0.0.91/+esm",

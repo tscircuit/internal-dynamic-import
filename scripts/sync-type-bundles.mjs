@@ -7,6 +7,7 @@ const supportedModules = [
   "circuit-json-to-bom-csv",
   "circuit-json-to-bpc",
   "circuit-json-to-connectivity-map",
+  "circuit-json-to-fdm-component-box",
   "circuit-json-to-gerber",
   "circuit-json-to-gltf",
   "circuit-json-to-kicad",

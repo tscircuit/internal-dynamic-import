@@ -7,6 +7,9 @@ async function verifyTyping() {
   const gerber = await importer("circuit-json-to-gerber")
   gerber.convertSoupToGerberCommands
 
+  const componentBox = await importer("circuit-json-to-fdm-component-box")
+  componentBox.createFdmComponentBox
+
   const gltf = await importer("circuit-json-to-gltf")
   gltf.convertSceneToGLTF
 
@@ -21,6 +24,7 @@ async function verifyTyping() {
 
   const registry = getDynamicModuleRegistry()
   registry["circuit-json-to-gltf"] = gltf
+  registry["circuit-json-to-fdm-component-box"] = componentBox
 
   const maybeGltf = globalThis.tscircuitDynamicModules?.["circuit-json-to-gltf"]
   if (maybeGltf) {
