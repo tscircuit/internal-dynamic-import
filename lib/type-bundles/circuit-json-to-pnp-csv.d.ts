@@ -1,4 +1,4 @@
-import { AnyCircuitElement, LayerRef } from 'circuit-json';
+import { LayerRef, SupplierName, AnyCircuitElement } from 'circuit-json';
 
 interface PickAndPlaceRow {
     designator: string;
@@ -7,9 +7,15 @@ interface PickAndPlaceRow {
     layer: LayerRef;
     rotation: number;
 }
-declare const convertCircuitJsonToPickAndPlaceRows: (circuitJson: AnyCircuitElement[], opts?: {
+interface PickAndPlaceConversionOptions {
     flip_y_axis?: boolean;
-}) => PickAndPlaceRow[];
-declare const convertCircuitJsonToPickAndPlaceCsv: (circuitJson: AnyCircuitElement[]) => string;
+    /**
+     * Adjust component rotations from the authored footprint's pin-1 frame to
+     * the selected supplier footprint's pin-1 frame when both are available.
+     */
+    supplier?: SupplierName;
+}
+declare const convertCircuitJsonToPickAndPlaceRows: (circuitJson: AnyCircuitElement[], opts?: PickAndPlaceConversionOptions) => PickAndPlaceRow[];
+declare const convertCircuitJsonToPickAndPlaceCsv: (circuitJson: AnyCircuitElement[], opts?: PickAndPlaceConversionOptions) => string;
 
-export { convertCircuitJsonToPickAndPlaceCsv, convertCircuitJsonToPickAndPlaceRows };
+export { type PickAndPlaceConversionOptions, type PickAndPlaceRow, convertCircuitJsonToPickAndPlaceCsv, convertCircuitJsonToPickAndPlaceRows };

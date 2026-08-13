@@ -483,14 +483,14 @@ declare const gerber_command_map: {
         rotation: z.ZodOptional<z.ZodNumber>;
         hole_diameter: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
-        standard_template_code: "P";
         outer_diameter: number;
+        standard_template_code: "P";
         number_of_vertices: number;
         hole_diameter?: number | undefined;
         rotation?: number | undefined;
     }, {
-        standard_template_code: "P";
         outer_diameter: number;
+        standard_template_code: "P";
         number_of_vertices: number;
         hole_diameter?: number | undefined;
         rotation?: number | undefined;
@@ -619,9 +619,9 @@ declare const gerber_command_map: {
         polarity: z.ZodEnum<["D", "C"]>;
     }, "strip", z.ZodTypeAny, {
         command_code: "LP";
-        polarity: "C" | "D";
+        polarity: "D" | "C";
     }, {
-        polarity: "C" | "D";
+        polarity: "D" | "C";
         command_code?: "LP" | undefined;
     }>>;
     readonly start_region_statement: GerberCommandDef<"G36", z.ZodObject<{
