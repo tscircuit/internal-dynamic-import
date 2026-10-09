@@ -14,6 +14,9 @@ const { convertSoupToGerberCommands } = await importer("circuit-json-to-gerber")
 const { CircuitJsonToKicadProConverter } = await importer(
   "circuit-json-to-kicad@0.0.91",
 )
+const { analyzeSchematicPlacement } = await importer(
+  "@tscircuit/circuit-json-schematic-placement-analysis@0.0.46",
+)
 ```
 
 For a supported module missing from the registry, resolution tries

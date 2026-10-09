@@ -16,6 +16,7 @@ import type * as CircuitJsonToTscircuitModule from "./type-bundles/circuit-json-
 import type * as CircuitToCanvasModule from "./type-bundles/circuit-to-canvas"
 import type * as CircuitToSvgModule from "./type-bundles/circuit-to-svg"
 import type * as KicadToCircuitJsonModule from "./type-bundles/kicad-to-circuit-json"
+import type * as SchematicPlacementAnalysisModule from "./type-bundles/@tscircuit/circuit-json-schematic-placement-analysis"
 
 export const supportedModules = [
   "circuit-json-to-3d-png",
@@ -36,6 +37,7 @@ export const supportedModules = [
   "circuit-to-canvas",
   "circuit-to-svg",
   "kicad-to-circuit-json",
+  "@tscircuit/circuit-json-schematic-placement-analysis",
 ] as const
 
 export type SupportedModuleName = (typeof supportedModules)[number]
@@ -62,19 +64,24 @@ export interface SupportedModuleMap {
   "circuit-to-canvas": typeof CircuitToCanvasModule
   "circuit-to-svg": typeof CircuitToSvgModule
   "kicad-to-circuit-json": typeof KicadToCircuitJsonModule
+  "@tscircuit/circuit-json-schematic-placement-analysis": typeof SchematicPlacementAnalysisModule
 }
 
 export type StripVersion<TSpecifier extends string> =
-  TSpecifier extends `${infer TBase}@${string}`
-    ? TBase extends SupportedModuleName
-      ? TBase
-      : never
-    : TSpecifier extends SupportedModuleName
-      ? TSpecifier
-      : never
+  TSpecifier extends SupportedModuleName
+    ? TSpecifier
+    : {
+        [TName in SupportedModuleName]: TSpecifier extends `${TName}@${string}`
+          ? TName
+          : never
+      }[SupportedModuleName]
 
 export const getModuleName = (specifier: string): string => {
-  const versionSeparatorIndex = specifier.indexOf("@")
+  // A scoped name's leading @ is part of the name, not a version separator.
+  const versionSeparatorIndex = specifier.indexOf(
+    "@",
+    specifier.startsWith("@") ? 1 : 0,
+  )
   return versionSeparatorIndex === -1
     ? specifier
     : specifier.slice(0, versionSeparatorIndex)

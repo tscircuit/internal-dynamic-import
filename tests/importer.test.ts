@@ -15,6 +15,9 @@ test("supportedModules includes all requested entrypoints", () => {
   expect(supportedModules).toContain("circuit-to-canvas")
   expect(supportedModules).toContain("circuit-to-svg")
   expect(supportedModules).toContain("kicad-to-circuit-json")
+  expect(supportedModules).toContain(
+    "@tscircuit/circuit-json-schematic-placement-analysis",
+  )
 })
 
 test("getImportUrl uses jscdn bundled ESM imports", () => {
@@ -30,6 +33,11 @@ test("getImportUrl uses jscdn bundled ESM imports", () => {
   expect(getImportUrl("circuit-json-to-kicad@0.0.91")).toBe(
     "https://jscdn.tscircuit.com/circuit-json-to-kicad/0.0.91/+esm",
   )
+  expect(
+    getImportUrl("@tscircuit/circuit-json-schematic-placement-analysis"),
+  ).toBe(
+    "https://jscdn.tscircuit.com/@tscircuit/circuit-json-schematic-placement-analysis/latest/+esm",
+  )
 })
 
 test("getImportUrls uses jscdn first and esm.run fallback", () => {
@@ -40,6 +48,14 @@ test("getImportUrls uses jscdn first and esm.run fallback", () => {
   expect(getImportUrls("circuit-json-to-kicad@0.0.91")).toEqual([
     "https://jscdn.tscircuit.com/circuit-json-to-kicad/0.0.91/+esm",
     "https://esm.run/circuit-json-to-kicad@0.0.91",
+  ])
+  expect(
+    getImportUrls(
+      "@tscircuit/circuit-json-schematic-placement-analysis@0.0.46",
+    ),
+  ).toEqual([
+    "https://jscdn.tscircuit.com/@tscircuit/circuit-json-schematic-placement-analysis/0.0.46/+esm",
+    "https://esm.run/@tscircuit/circuit-json-schematic-placement-analysis@0.0.46",
   ])
 })
 

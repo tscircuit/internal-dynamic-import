@@ -57,6 +57,7 @@
     "circuit-to-svg": "0.0.339",
     "kicad-to-circuit-json": "0.0.98",
     "tsup": "8.5.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@tscircuit/circuit-json-schematic-placement-analysis": "https://jscdn.tscircuit.com/@tscircuit/circuit-json-schematic-placement-analysis/0.0.46.tgz"
   }
 }
