@@ -32,11 +32,11 @@ test("scoped default resolution keeps exact versions and existing CDN fallback",
   await resolve(`${moduleName}@0.0.45`)
   await resolve(moduleName)
   expect(attempts).toEqual([
-    `https://jscdn.tscircuit.com/${moduleName}/0.0.46/+esm`,
+    `https://jscdn.tscircuit.com/${moduleName}/0.0.46/dist/browser.js`,
     `https://esm.run/${moduleName}@0.0.46`,
-    `https://jscdn.tscircuit.com/${moduleName}/0.0.45/+esm`,
+    `https://jscdn.tscircuit.com/${moduleName}/0.0.45/dist/browser.js`,
     `https://esm.run/${moduleName}@0.0.45`,
-    `https://jscdn.tscircuit.com/${moduleName}/latest/+esm`,
+    `https://jscdn.tscircuit.com/${moduleName}/latest/dist/browser.js`,
     `https://esm.run/${moduleName}`,
   ])
 })

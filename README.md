@@ -20,8 +20,10 @@ const { analyzeSchematicPlacement } = await importer(
 ```
 
 For a supported module missing from the registry, resolution tries
-`https://jscdn.tscircuit.com/.../+esm`, then `https://esm.run/...` if the first
-import fails. Omitting a version requests `latest`; adding `@...` preserves the
+its browser entrypoint on `https://jscdn.tscircuit.com`, then `https://esm.run/...`
+if the first import fails. Most packages use `/+esm`; the schematic placement
+analyzer uses its published `/dist/browser.js` bundle. Omitting a version
+requests `latest`; adding `@...` preserves the
 requested version or tag. Unsupported module names reject before a CDN import.
 
 Supported-module declarations describe a recent package version, so the default

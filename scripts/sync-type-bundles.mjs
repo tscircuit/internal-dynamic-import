@@ -37,9 +37,18 @@ const supportedModules = [
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const outputDir = path.join(rootDir, "lib", "type-bundles")
+const browserTypeEntrypoints = new Map([
+  ["@tscircuit/circuit-json-schematic-placement-analysis", "lib/browser.ts"],
+])
 
 const getDeclarationPath = async (moduleName) => {
   const packageDir = path.join(rootDir, "node_modules", moduleName)
+  const browserTypeEntrypoint = browserTypeEntrypoints.get(moduleName)
+  if (browserTypeEntrypoint) {
+    const declarationPath = path.join(packageDir, browserTypeEntrypoint)
+    await access(declarationPath)
+    return declarationPath
+  }
   const packageJson = JSON.parse(
     await readFile(path.join(packageDir, "package.json"), "utf8"),
   )

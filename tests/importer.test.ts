@@ -36,7 +36,7 @@ test("getImportUrl uses jscdn bundled ESM imports", () => {
   expect(
     getImportUrl("@tscircuit/circuit-json-schematic-placement-analysis"),
   ).toBe(
-    "https://jscdn.tscircuit.com/@tscircuit/circuit-json-schematic-placement-analysis/latest/+esm",
+    "https://jscdn.tscircuit.com/@tscircuit/circuit-json-schematic-placement-analysis/latest/dist/browser.js",
   )
 })
 
@@ -54,7 +54,7 @@ test("getImportUrls uses jscdn first and esm.run fallback", () => {
       "@tscircuit/circuit-json-schematic-placement-analysis@0.0.46",
     ),
   ).toEqual([
-    "https://jscdn.tscircuit.com/@tscircuit/circuit-json-schematic-placement-analysis/0.0.46/+esm",
+    "https://jscdn.tscircuit.com/@tscircuit/circuit-json-schematic-placement-analysis/0.0.46/dist/browser.js",
     "https://esm.run/@tscircuit/circuit-json-schematic-placement-analysis@0.0.46",
   ])
 })

@@ -39,6 +39,8 @@ async function verifyTyping() {
   void count
   // @ts-expect-error scoped analyzer is not an untyped namespace
   versionedAnalysis.CircuitJsonToKicadProConverter
+  // @ts-expect-error declarations describe the browser entrypoint, not all root exports
+  versionedAnalysis.ParallelDiodeResistorPlacementSolver
   // @ts-expect-error analyzer issue-type filters are checked
   analysis.analyzeSchematicPlacement([], { issueTypes: ["unknown-issue"] })
 
