@@ -1,0 +1,593 @@
+import { CircuitJson } from 'circuit-json';
+
+interface SchematicBoxPlacement {
+    positionAnchor: "center";
+    schX: number;
+    schY: number;
+    width: number;
+    height: number;
+    schematicSheetId?: string;
+    schematicSheetName?: string;
+    sourceComponentId?: string;
+    sourceComponentName?: string;
+    schematicComponentId?: string;
+    schematicSymbolId?: string;
+    subcircuitId?: string;
+}
+interface SchematicBoxPlacementLineItem extends SchematicBoxPlacement {
+    lineItemType: "SchematicBoxPlacement";
+}
+interface ComponentOverlap {
+    lineItemType: "ComponentOverlap";
+    firstComponent: SchematicBoxPlacement;
+    secondComponent: SchematicBoxPlacement;
+    overlapWidth: number;
+    overlapHeight: number;
+    correctionSuggestions: OverlapCorrectionSuggestion[];
+}
+interface OverlapCorrectionSuggestion {
+    targetComponentName?: string;
+    deltaSchX: number;
+    deltaSchY: number;
+    newSchX: number;
+    newSchY: number;
+}
+interface SchematicBoxHasALotOfSurroundingWhitespace {
+    lineItemType: "SchematicBoxHasALotOfSurroundingWhitespace";
+    schematicBox: SchematicBoxPlacement;
+    whitespaceLeft: number;
+    whitespaceRight: number;
+    whitespaceTop: number;
+    whitespaceBottom: number;
+}
+interface CapacitorSymbolHorizontal {
+    lineItemType: "CapacitorSymbolHorizontal";
+    schematicBox: SchematicBoxPlacement;
+    message: string;
+}
+/** A power-to-ground capacitor bank is spread out within one schematic block. */
+interface DecouplingCapacitorsNotCloseTogether {
+    lineItemType: "DecouplingCapacitorsNotCloseTogether";
+    railName: string;
+    groundName: string;
+    /** All capacitors in this bank, sharing supply, return, and schematic scope. */
+    capacitorSchematicBoxes: SchematicBoxPlacement[];
+    /** Largest body gap required to connect the bank through neighboring capacitors. */
+    maxBodyGap: number;
+    maxRecommendedBodyGap: number;
+    message: string;
+}
+interface VerboseSchematicNetLabel {
+    lineItemType: "VerboseSchematicNetLabel";
+    schematicNetLabelId?: string;
+    sourceNetId?: string;
+    schematicSheetId?: string;
+    schematicSheetName?: string;
+    text: string;
+    involvedPins: string[];
+    schX: number;
+    schY: number;
+    message: string;
+}
+interface BaseSchematicBoxTooWide {
+    schematicBox: SchematicBoxPlacement;
+    measuredInnerLabelHorizontalEmptySpace: number;
+    maxAllowedInnerLabelHorizontalEmptySpace: number;
+    suggestedSchWidth: number;
+    message: string;
+}
+interface PinHeaderSchematicBoxTooWide extends BaseSchematicBoxTooWide {
+    lineItemType: "PinHeaderSchematicBoxTooWide";
+}
+interface GenericSchematicBoxTooWide extends BaseSchematicBoxTooWide {
+    lineItemType: "GenericSchematicBoxTooWide";
+}
+type SchematicBoxTooWideIssue = PinHeaderSchematicBoxTooWide | GenericSchematicBoxTooWide;
+interface SchematicBoxInnerLabelCollision {
+    lineItemType: "SchematicBoxInnerLabelCollision";
+    schematicBox: SchematicBoxPlacement;
+    overlappingSides: SchematicSide[];
+    message: string;
+}
+type SchematicSide = "left" | "right" | "top" | "bottom";
+type SchematicPortFacingDirection = "left" | "right" | "up" | "down";
+interface SchematicPinPaddingToEdgeTooLarge {
+    lineItemType: "SchematicPinPaddingToEdgeTooLarge";
+    pinSide: SchematicSide;
+    edgeSide: SchematicSide;
+    pinName?: string;
+    schematicBox: SchematicBoxPlacement;
+    measuredPadding: number;
+    maxAllowedPadding: number;
+    excessPadding: number;
+    /** All excessive gaps for this box; scalar gap fields identify the worst gap. */
+    paddingDetails?: Array<{
+        pinSide: SchematicSide;
+        edgeSide: SchematicSide;
+        pinName?: string;
+        measuredPadding: number;
+        maxAllowedPadding: number;
+        excessPadding: number;
+    }>;
+    suggestedSchWidth?: number;
+    suggestedSchHeight?: number;
+    message: string;
+}
+interface DiodeResistorNotAligned {
+    lineItemType: "DiodeResistorNotAligned";
+    diodeSchematicBox: SchematicBoxPlacement;
+    resistorSchematicBox: SchematicBoxPlacement;
+    diodePin?: string;
+    resistorPin?: string;
+    diodePinFacingDirection?: string;
+    resistorPinFacingDirection?: string;
+    message: string;
+}
+/** Readability advisory for a local diode/resistor pair across the same two nets. */
+interface ParallelDiodeResistorNotAligned {
+    lineItemType: "ParallelDiodeResistorNotAligned";
+    diodeSchematicBox: SchematicBoxPlacement;
+    resistorSchematicBox: SchematicBoxPlacement;
+    reason: "different_axes" | "crossed_connections" | "staggered";
+    message: string;
+}
+interface ComponentPinsWouldAlignWithVerticalShift {
+    lineItemType: "ComponentPinsWouldAlignWithVerticalShift";
+    firstComponent: SchematicBoxPlacement;
+    secondComponent: SchematicBoxPlacement;
+    targetComponent: SchematicBoxPlacement;
+    deltaSchY: number;
+    newSchY: number;
+    currentlyAlignedPinCount: number;
+    alignedPinCount: number;
+    alignedPinPairs: Array<{
+        firstPin?: string;
+        secondPin?: string;
+    }>;
+    message: string;
+}
+interface TraceCanBeSimplifiedByMovingComponent {
+    lineItemType: "TraceCanBeSimplifiedByMovingComponent";
+    schematicTraceId: string;
+    traceName?: string;
+    targetComponent: SchematicBoxPlacement;
+    deltaSchX: number;
+    deltaSchY: number;
+    newSchX: number;
+    newSchY: number;
+    currentTurnCount: number;
+    suggestedTurnCount: number;
+    /** Collision-checked calculate-elbow routes after applying this move. */
+    suggestedTraces?: Array<{
+        schematicTraceId: string;
+        points: Array<{
+            x: number;
+            y: number;
+        }>;
+    }>;
+    message: string;
+}
+interface CrystalNotCenteredOverLoadCapacitors {
+    lineItemType: "CrystalNotCenteredOverLoadCapacitors";
+    crystalSchematicBox: SchematicBoxPlacement;
+    firstLoadCapacitorSchematicBox: SchematicBoxPlacement;
+    secondLoadCapacitorSchematicBox: SchematicBoxPlacement;
+    deltaSchX: number;
+    deltaSchY: number;
+    newSchX: number;
+    newSchY: number;
+    message: string;
+}
+interface TwoPinComponentCouldBeFlipped {
+    lineItemType: "TwoPinComponentCouldBeFlipped";
+    schematicTraceId: string;
+    traceName?: string;
+    targetComponent: SchematicBoxPlacement;
+    connectedComponent: SchematicBoxPlacement;
+    targetPin?: string;
+    currentFacingDirection: SchematicPortFacingDirection;
+    suggestedFacingDirection: SchematicPortFacingDirection;
+    deltaSchRotation: 180;
+    currentTurnCount: number;
+    suggestedTurnCount: number;
+    message: string;
+}
+/** Advisory: a direct negative-feedback R/C network is far from its amplifier. */
+interface FeedbackNetworkNotCompact {
+    lineItemType: "FeedbackNetworkNotCompact";
+    amplifierSchematicBox: SchematicBoxPlacement;
+    feedbackComponents: SchematicBoxPlacement[];
+    distantComponents: Array<{
+        schematicBox: SchematicBoxPlacement;
+        bodyGap: number;
+        maxRecommendedBodyGap: number;
+    }>;
+    outputSourcePortId: string;
+    invertingInputSourcePortId: string;
+    message: string;
+}
+/** Advisory: an explicitly identified pull resistor is far on the unconventional side. */
+interface PullResistorOnWrongSide {
+    lineItemType: "PullResistorOnWrongSide";
+    resistorSchematicBox: SchematicBoxPlacement;
+    hostSchematicBox: SchematicBoxPlacement;
+    signalSourcePortId: string;
+    signalPinName: string;
+    signalSchY: number;
+    pullDirection: "up" | "down";
+    preferredSide: "above" | "below";
+    wrongSideGap: number;
+    maxRecommendedWrongSideGap: number;
+    message: string;
+}
+interface TwoPinComponentRailOrientation {
+    schematicBox: SchematicBoxPlacement;
+    railSourcePortId: string;
+    railPinName: string;
+    railType: "power" | "ground";
+    suggestedRailFacingDirection: "up" | "down";
+    message: string;
+}
+interface TwoPinComponentShouldBeVertical extends TwoPinComponentRailOrientation {
+    lineItemType: "TwoPinComponentShouldBeVertical";
+    deltaSchRotation: -90 | 90;
+}
+/** A vertical component has a positive supply below its ground pin or a resistor's signal pin. */
+interface TwoPinComponentHasInvertedRails extends TwoPinComponentRailOrientation {
+    lineItemType: "TwoPinComponentHasInvertedRails";
+    railType: "power";
+    deltaSchRotation: 180;
+    suggestedRailFacingDirection: "up";
+}
+interface ComponentNetLabelCollision {
+    lineItemType: "ComponentNetLabelCollision";
+    firstComponent: SchematicBoxPlacement;
+    secondComponent: SchematicBoxPlacement;
+    message: string;
+    overlappingLabel1Bounds: {
+        left: number;
+        right: number;
+        top: number;
+        bottom: number;
+    };
+    overlappingLabel2Bounds: {
+        left: number;
+        right: number;
+        top: number;
+        bottom: number;
+    };
+    suggestion?: {
+        componentName: string;
+        newSchX: number;
+        newSchY: number;
+    };
+}
+interface ComponentBoxNetLabelCollision {
+    lineItemType: "ComponentBoxNetLabelCollision";
+    boxComponent: SchematicBoxPlacement;
+    labelComponent: SchematicBoxPlacement;
+    message: string;
+    boxBounds: {
+        left: number;
+        right: number;
+        top: number;
+        bottom: number;
+    };
+    labelBounds: {
+        left: number;
+        right: number;
+        top: number;
+        bottom: number;
+    };
+    suggestion?: {
+        componentName: string;
+        newSchX: number;
+        newSchY: number;
+    };
+}
+interface SchematicIssueBounds {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+}
+interface NetLabelCollision {
+    lineItemType: "NetLabelCollision";
+    schematicSheetId?: string;
+    schematicSheetName?: string;
+    /** Actual intersection regions in schematic coordinates (Y up).
+     * Optional for compatibility with previously serialized reports. */
+    collisionBounds?: SchematicIssueBounds[];
+    pairs: Array<{
+        comp1Name: string;
+        comp2Name: string;
+    }>;
+    moves: Array<{
+        componentName: string;
+        newSchX: number;
+        newSchY: number;
+    }>;
+}
+interface SchematicTextCollisionObject {
+    type: "text" | "trace" | "component";
+    id: string;
+    text?: string;
+    componentName?: string;
+    schematicComponentId?: string;
+}
+interface SchematicTextCollision {
+    lineItemType: "SchematicTextCollision";
+    schematicSheetId?: string;
+    schematicSheetName?: string;
+    schematicTextId: string;
+    text: string;
+    collidingObject: SchematicTextCollisionObject;
+    textBounds: {
+        left: number;
+        right: number;
+        top: number;
+        bottom: number;
+    };
+    collidingObjectBounds: {
+        left: number;
+        right: number;
+        top: number;
+        bottom: number;
+    };
+    /** A clear text-anchor position for this issue; reanalyze after applying it. */
+    suggestedMove?: {
+        newSchX: number;
+        newSchY: number;
+    };
+    message: string;
+}
+interface ResetNetworkNotGrouped {
+    lineItemType: "ResetNetworkNotGrouped";
+    /** The component whose reset pin is served by this network. */
+    hostSchematicBox: SchematicBoxPlacement;
+    resetSourcePortId: string;
+    resetPinName: string;
+    /** Reset pull-up, capacitor, and any associated test points; excludes the host. */
+    supportNetworkComponents: SchematicBoxPlacement[];
+    maxDistanceFromResetPin: number;
+    maxRecommendedDistance: number;
+    message: string;
+}
+interface ConnectorPositionCausesTraceDetours {
+    lineItemType: "ConnectorPositionCausesTraceDetours";
+    connectorSchematicBox: SchematicBoxPlacement;
+    connectedComponents: SchematicBoxPlacement[];
+    /** Existing routed signal connections that demonstrate the detours. */
+    schematicTraceIds: string[];
+    evaluatedSignalCount: number;
+    newSchX: number;
+    newSchY: number;
+    deltaSchX: number;
+    deltaSchY: number;
+    /** Sum of Manhattan distances between the evaluated signal pins. */
+    currentTotalSignalDistance: number;
+    /** Sum of Manhattan pin distances after moving; not a promised routed length. */
+    suggestedTotalSignalDistance: number;
+    message: string;
+}
+/** Advisory for a grounded-emitter NPN switch; no automatic move is implied. */
+interface LowSideTransistorNotAlignedWithLoad {
+    lineItemType: "LowSideTransistorNotAlignedWithLoad";
+    transistorSchematicBox: SchematicBoxPlacement;
+    loadSchematicBox: SchematicBoxPlacement;
+    baseResistorSchematicBox: SchematicBoxPlacement;
+    clampDiodeSchematicBox: SchematicBoxPlacement;
+    collectorSourcePortId: string;
+    emitterSourcePortId: string;
+    collectorFacingDirection: SchematicPortFacingDirection;
+    emitterFacingDirection: SchematicPortFacingDirection;
+    placementProblems: Array<"transistor_not_below_load" | "collector_not_up" | "emitter_not_down">;
+    message: string;
+}
+/** Advisory for an electrically identified USB series pair drawn end-to-end. */
+interface UsbSeriesResistorsNotAligned {
+    lineItemType: "UsbSeriesResistorsNotAligned";
+    positiveResistorSchematicBox: SchematicBoxPlacement;
+    negativeResistorSchematicBox: SchematicBoxPlacement;
+    hostSourceComponentId: string;
+    positiveSourcePortId: string;
+    negativeSourcePortId: string;
+    signalAxis: "horizontal" | "vertical";
+    message: string;
+}
+/** Advisory for a regulator's local input/output capacitor pair on reversed sides. */
+interface RegulatorCapacitorsOnWrongSides {
+    lineItemType: "RegulatorCapacitorsOnWrongSides";
+    regulatorSchematicBox: SchematicBoxPlacement;
+    inputCapacitorSchematicBox: SchematicBoxPlacement;
+    outputCapacitorSchematicBox: SchematicBoxPlacement;
+    inputSourcePortId: string;
+    outputSourcePortId: string;
+    message: string;
+}
+/** Advisory: a vertical divider's supply resistor lies clearly below its ground resistor. */
+interface VoltageDividerSupplyResistorBelowGroundResistor {
+    lineItemType: "VoltageDividerSupplyResistorBelowGroundResistor";
+    supplyResistorSchematicBox: SchematicBoxPlacement;
+    groundResistorSchematicBox: SchematicBoxPlacement;
+    supplyTapSourcePortId: string;
+    groundTapSourcePortId: string;
+    reversedBodyGap: number;
+    message: string;
+}
+/** Series gate and gate-source resistors scattered away from their MOSFET. */
+interface MosfetGateNetworkNotGrouped {
+    lineItemType: "MosfetGateNetworkNotGrouped";
+    mosfetSchematicBox: SchematicBoxPlacement;
+    seriesGateResistorSchematicBox: SchematicBoxPlacement;
+    gateSourceResistorSchematicBox: SchematicBoxPlacement;
+    /** Largest body-to-body gap from either resistor to the MOSFET. */
+    maxBodyGap: number;
+    maxRecommendedBodyGap: number;
+    message: string;
+}
+/** A local flyback diode separated from the relay coil it protects. */
+interface FlybackDiodeSeparatedFromRelayCoil {
+    lineItemType: "FlybackDiodeSeparatedFromRelayCoil";
+    relaySchematicBox: SchematicBoxPlacement;
+    diodeSchematicBox: SchematicBoxPlacement;
+    coilSourcePortIds: [string, string];
+    distanceFromCoilPins: number;
+    message: string;
+}
+/** Advisory for a displaced local shunt with one sense branch split by labels. */
+interface CurrentSenseShuntSeparatedFromInputs {
+    lineItemType: "CurrentSenseShuntSeparatedFromInputs";
+    amplifierSchematicBox: SchematicBoxPlacement;
+    shuntSchematicBox: SchematicBoxPlacement;
+    positiveInputSourcePortId: string;
+    negativeInputSourcePortId: string;
+    /** Gap from the shunt body to the band spanned by the two input pins. */
+    inputBandGap: number;
+    message: string;
+}
+/** A capacitor placed far across its host chip from its two connected pins. */
+interface CapacitorSeparatedFromChipPins {
+    lineItemType: "CapacitorSeparatedFromChipPins";
+    hostSchematicBox: SchematicBoxPlacement;
+    capacitorSchematicBox: SchematicBoxPlacement;
+    /** Connected chip pins, in the order of the capacitor's source ports. */
+    chipSourcePortIds: [string, string];
+    maxPinDistance: number;
+    maxRecommendedPinDistance: number;
+    message: string;
+}
+/** The series element and grounded shunt branches of a signal pi filter are separated. */
+interface PiFilterComponentsNotGrouped {
+    lineItemType: "PiFilterComponentsNotGrouped";
+    inductorSchematicBox: SchematicBoxPlacement;
+    firstCapacitorSchematicBox: SchematicBoxPlacement;
+    secondCapacitorSchematicBox: SchematicBoxPlacement;
+    /** Longest direct distance between electrically connected inductor/capacitor pins. */
+    maxSignalPinDistance: number;
+    maxRecommendedSignalPinDistance: number;
+    message: string;
+}
+/** Readability advisory for a physically continuous local path to an explicit rail. */
+interface RailPathTooSpreadOut {
+    lineItemType: "RailPathTooSpreadOut";
+    hostSchematicBox: SchematicBoxPlacement;
+    sourcePortId: string;
+    /** Display name for user-facing diagnostics; identity remains sourcePortId. */
+    sourcePortName?: string;
+    railType: "power" | "ground";
+    supportSchematicBoxes: SchematicBoxPlacement[];
+    schematicTraceIds: string[];
+    pathPoints: Array<{
+        x: number;
+        y: number;
+    }>;
+    pathBounds: SchematicIssueBounds;
+    pathLength: number;
+    pathSpan: number;
+    maxRecommendedSpan: number;
+    maxRecommendedPathLength: number;
+    message: string;
+}
+type SchematicPlacementIssue = RailPathTooSpreadOut | CapacitorSeparatedFromChipPins | PiFilterComponentsNotGrouped | MosfetGateNetworkNotGrouped | FlybackDiodeSeparatedFromRelayCoil | CurrentSenseShuntSeparatedFromInputs | VoltageDividerSupplyResistorBelowGroundResistor | RegulatorCapacitorsOnWrongSides | UsbSeriesResistorsNotAligned | LowSideTransistorNotAlignedWithLoad | ComponentOverlap | SchematicBoxHasALotOfSurroundingWhitespace | CapacitorSymbolHorizontal | DecouplingCapacitorsNotCloseTogether | VerboseSchematicNetLabel | SchematicBoxTooWideIssue | SchematicBoxInnerLabelCollision | SchematicPinPaddingToEdgeTooLarge | DiodeResistorNotAligned | ParallelDiodeResistorNotAligned | ComponentPinsWouldAlignWithVerticalShift | TraceCanBeSimplifiedByMovingComponent | CrystalNotCenteredOverLoadCapacitors | TwoPinComponentCouldBeFlipped | FeedbackNetworkNotCompact | PullResistorOnWrongSide | TwoPinComponentShouldBeVertical | TwoPinComponentHasInvertedRails | ComponentNetLabelCollision | ComponentBoxNetLabelCollision | NetLabelCollision | SchematicTextCollision | ResetNetworkNotGrouped | ConnectorPositionCausesTraceDetours;
+interface SchematicPlacementIssues {
+    lineItemType: "SchematicPlacementIssues";
+    issues: SchematicPlacementIssue[];
+}
+type SchematicPlacementLineItem = SchematicBoxPlacementLineItem | SchematicPlacementIssues;
+/** Select issue types to execute; omitted runs all checks, [] runs none. */
+interface SchematicPlacementAnalysisOptions {
+    /** Schematic drawing units, not PCB dimensions. Defaults: span 8, length 16. */
+    railPathVisibility?: {
+        maxSpan?: number;
+        maxPathLength?: number;
+    };
+    issueTypes?: readonly SchematicPlacementIssue["lineItemType"][];
+}
+
+declare class SchematicPlacementAnalysis {
+    private readonly lineItems;
+    private readonly groupBySchematicSheet;
+    constructor(lineItems: SchematicPlacementLineItem[], groupBySchematicSheet?: boolean);
+    getLineItems(): SchematicPlacementLineItem[];
+    /** Filter emitted issues without rerunning or changing the solvers. */
+    getIssues(filter?: {
+        issueTypes?: readonly SchematicPlacementIssue["lineItemType"][];
+        schematicSheetId?: string;
+    }): SchematicPlacementIssue[];
+    /** Counts emitted issue objects, including zero counts for known types. */
+    getIssueCounts(filter?: {
+        schematicSheetId?: string;
+    }): {
+        FlybackDiodeSeparatedFromRelayCoil: number;
+        ComponentOverlap: number;
+        SchematicBoxHasALotOfSurroundingWhitespace: number;
+        CapacitorSymbolHorizontal: number;
+        VerboseSchematicNetLabel: number;
+        PinHeaderSchematicBoxTooWide: number;
+        GenericSchematicBoxTooWide: number;
+        SchematicBoxInnerLabelCollision: number;
+        SchematicPinPaddingToEdgeTooLarge: number;
+        DiodeResistorNotAligned: number;
+        ParallelDiodeResistorNotAligned: number;
+        ComponentPinsWouldAlignWithVerticalShift: number;
+        TraceCanBeSimplifiedByMovingComponent: number;
+        CrystalNotCenteredOverLoadCapacitors: number;
+        ComponentNetLabelCollision: number;
+        ComponentBoxNetLabelCollision: number;
+        NetLabelCollision: number;
+        FeedbackNetworkNotCompact: number;
+        PullResistorOnWrongSide: number;
+        SchematicTextCollision: number;
+        ResetNetworkNotGrouped: number;
+        TwoPinComponentCouldBeFlipped: number;
+        TwoPinComponentShouldBeVertical: number;
+        TwoPinComponentHasInvertedRails: number;
+        DecouplingCapacitorsNotCloseTogether: number;
+        ConnectorPositionCausesTraceDetours: number;
+        LowSideTransistorNotAlignedWithLoad: number;
+        UsbSeriesResistorsNotAligned: number;
+        RegulatorCapacitorsOnWrongSides: number;
+        VoltageDividerSupplyResistorBelowGroundResistor: number;
+        CurrentSenseShuntSeparatedFromInputs: number;
+        PiFilterComponentsNotGrouped: number;
+        MosfetGateNetworkNotGrouped: number;
+        CapacitorSeparatedFromChipPins: number;
+        RailPathTooSpreadOut: number;
+    };
+    getString(): string;
+    schematicBoxPlacementsToString(lineItem: SchematicBoxPlacementLineItem): string;
+    schematicIssuesToString(issue: SchematicPlacementIssue): string;
+    toString(): string;
+    private issueContextToLines;
+}
+declare const analyzeSchematicPlacement: (circuitJson: CircuitJson, options?: SchematicPlacementAnalysisOptions) => SchematicPlacementAnalysis;
+
+interface SchematicPlacementIssueArtifact {
+    /** Stable within this analysis, even when filtering the returned artifacts. */
+    issueIndex: number;
+    issue: SchematicPlacementIssue;
+    schematicSheetId?: string;
+    /** Unpadded issue geometry and involved component bounds; schematic units, Y up. */
+    bounds?: SchematicIssueBounds;
+    descriptionXml: string;
+    fileName: string;
+    contentType: "image/svg+xml";
+    /** A cropped schematic with just this issue's overlay and its XML underneath. */
+    content: string;
+}
+interface SchematicPlacementIssueArtifactOptions {
+    /** Reuse an analysis of the same circuit to avoid running the solvers again. */
+    analysis?: SchematicPlacementAnalysis;
+    issueTypes?: readonly SchematicPlacementIssue["lineItemType"][];
+    schematicSheetId?: string;
+    /** Width and height of the schematic panel; the XML panel adds to total height. */
+    width?: number;
+    height?: number;
+}
+/** Create one self-contained SVG per emitted issue, without filesystem access.
+ * No issues (or no filter matches) returns []. Other issues' overlays, counts,
+ * and XML are excluded; surrounding schematic elements remain as context. */
+declare function createSchematicPlacementIssueArtifacts(circuitJson: CircuitJson, options?: SchematicPlacementIssueArtifactOptions): SchematicPlacementIssueArtifact[];
+
+export { SchematicPlacementAnalysis, type SchematicPlacementIssueArtifact, analyzeSchematicPlacement, createSchematicPlacementIssueArtifacts };

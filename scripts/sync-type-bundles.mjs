@@ -1,6 +1,17 @@
-import { access, mkdir, readFile, writeFile } from "node:fs/promises"
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises"
+import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { build } from "tsup"
+import ts from "typescript"
 
 const supportedModules = [
   "circuit-json-to-3d-png",
@@ -21,13 +32,23 @@ const supportedModules = [
   "circuit-to-canvas",
   "circuit-to-svg",
   "kicad-to-circuit-json",
+  "@tscircuit/circuit-json-schematic-placement-analysis",
 ]
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const outputDir = path.join(rootDir, "lib", "type-bundles")
+const browserTypeEntrypoints = new Map([
+  ["@tscircuit/circuit-json-schematic-placement-analysis", "lib/browser.ts"],
+])
 
 const getDeclarationPath = async (moduleName) => {
   const packageDir = path.join(rootDir, "node_modules", moduleName)
+  const browserTypeEntrypoint = browserTypeEntrypoints.get(moduleName)
+  if (browserTypeEntrypoint) {
+    const declarationPath = path.join(packageDir, browserTypeEntrypoint)
+    await access(declarationPath)
+    return declarationPath
+  }
   const packageJson = JSON.parse(
     await readFile(path.join(packageDir, "package.json"), "utf8"),
   )
@@ -61,5 +82,64 @@ await mkdir(outputDir, { recursive: true })
 for (const moduleName of supportedModules) {
   const sourcePath = await getDeclarationPath(moduleName)
   const outputPath = path.join(outputDir, `${moduleName}.d.ts`)
-  await writeFile(outputPath, await readFile(sourcePath, "utf8"))
+  await mkdir(path.dirname(outputPath), { recursive: true })
+  if (sourcePath.endsWith(".d.ts")) {
+    await writeFile(outputPath, await readFile(sourcePath, "utf8"))
+  } else {
+    // Some packages expose TypeScript source as their types entrypoint. Emit
+    // and bundle their declarations rather than copying unresolved re-exports.
+    const temporaryDir = await mkdtemp(
+      path.join(tmpdir(), "dynamic-import-types-"),
+    )
+    try {
+      const sourceDir = path.dirname(await realpath(sourcePath))
+      const declarationDir = path.join(temporaryDir, "declarations")
+      const program = ts.createProgram(
+        ts.sys.readDirectory(sourceDir, [".ts", ".tsx"]),
+        {
+          module: ts.ModuleKind.Preserve,
+          moduleResolution: ts.ModuleResolutionKind.Bundler,
+          target: ts.ScriptTarget.ESNext,
+          declaration: true,
+          emitDeclarationOnly: true,
+          skipLibCheck: true,
+          rootDir: sourceDir,
+          outDir: declarationDir,
+        },
+      )
+      const result = program.emit()
+      if (result.emitSkipped || result.diagnostics.length > 0) {
+        throw new Error(
+          `Could not emit declarations for ${moduleName}: ${ts.formatDiagnostics(
+            result.diagnostics,
+            {
+              getCanonicalFileName: (fileName) => fileName,
+              getCurrentDirectory: () => rootDir,
+              getNewLine: () => "\n",
+            },
+          )}`,
+        )
+      }
+      await build({
+        entry: {
+          index: path.join(
+            declarationDir,
+            path.basename(sourcePath).replace(/\.tsx?$/u, ".d.ts"),
+          ),
+        },
+        outDir: temporaryDir,
+        format: ["esm"],
+        config: false,
+        tsconfig: path.join(rootDir, "tsconfig.json"),
+        dts: { only: true },
+        silent: true,
+      })
+      await writeFile(
+        outputPath,
+        await readFile(path.join(temporaryDir, "index.d.ts"), "utf8"),
+      )
+    } finally {
+      await rm(temporaryDir, { recursive: true, force: true })
+    }
+  }
 }
