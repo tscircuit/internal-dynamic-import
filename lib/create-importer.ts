@@ -4,7 +4,7 @@ import { getImportUrls } from "./import-urls"
 /** Internal dependency seam lets tests observe CDN attempts without a network. */
 export function createDefaultDynamicImportResolver(
   importModule: (url: string) => Promise<unknown> = (url) =>
-    import(/* @vite-ignore */ url),
+    import(/* @vite-ignore */ /* webpackIgnore: true */ url),
 ) {
   return async (specifier: string): Promise<unknown> => {
     const modules = getDynamicModuleRegistry()
