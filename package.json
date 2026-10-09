@@ -15,10 +15,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./source": {
+      "types": "./lib/index.ts",
+      "import": "./lib/index.ts",
+      "default": "./lib/index.ts"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "lib"
   ],
   "sideEffects": false,
   "scripts": {
