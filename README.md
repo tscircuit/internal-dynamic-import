@@ -1,33 +1,83 @@
 # @tscircuit/internal-dynamic-import
 
-This module simplifies dynamically importing tscircuit modules, especially when you always want to use the latest version.
+Import supported tscircuit modules with declaration types, or supply your own
+module registry and resolution functions. The default resolver checks a shared
+registry, then loads supported modules from a CDN. Custom resolvers can use
+installed dependencies, lazy imports, or another module source.
 
-It is also approximately type-safe, meaning we package bundled declaration types for a recent version of the supported modules here while leaving the runtime implementation remote.
+## Default imports
 
-```tsx
+```ts
 import importer from "@tscircuit/internal-dynamic-import"
 
-async function main() {
-  const { convertSoupToGerberCommands } = await importer("circuit-json-to-gerber")
-
-  // Import a specific version
-  const { CircuitJsonToKicadProConverter } = await importer(
-    "circuit-json-to-kicad@0.0.91",
-  )
-
-  // ...
-}
+const { convertSoupToGerberCommands } = await importer("circuit-json-to-gerber")
+const { CircuitJsonToKicadProConverter } = await importer(
+  "circuit-json-to-kicad@0.0.91",
+)
 ```
 
-Runtime imports try jscdn first through `https://jscdn.tscircuit.com/.../+esm`
-and fall back to `https://esm.run/...` if the jscdn import fails. Omitting a
-version uses `latest`; adding `@...` preserves the requested version/tag.
+For a supported module missing from the registry, resolution tries
+`https://jscdn.tscircuit.com/.../+esm`, then `https://esm.run/...` if the first
+import fails. Omitting a version requests `latest`; adding `@...` preserves the
+requested version or tag. Unsupported module names reject before a CDN import.
 
+Supported-module declarations describe a recent package version, so the default
+importer's types are approximate when loading a different runtime version.
+`getImportUrl`, `getImportUrls`, and `supportedModules` expose the default URL
+and module-name metadata.
 
-## Bundle dependencies in the application
+## Register an existing module
 
-An application can provide lazy imports for its own pinned dependencies before
-mounting RunFrame or other consumers:
+```ts
+import importer, {
+  getDynamicModuleRegistry,
+  registerDynamicModule,
+} from "@tscircuit/internal-dynamic-import"
+import * as svgModule from "circuit-to-svg"
+
+registerDynamicModule("circuit-to-svg", svgModule)
+const svg = await importer("circuit-to-svg")
+
+// The shared registry also contains successful default imports.
+const registry = getDynamicModuleRegistry()
+```
+
+The default resolver checks exact specifier keys in this registry before
+loading remotely. Registering one module does not change resolution for other
+modules. Successful CDN imports are cached under the exact requested specifier;
+a versioned entry does not satisfy another version or a bare-name request.
+
+## Create a lazy module map
+
+```ts
+import { createDynamicImporter } from "@tscircuit/internal-dynamic-import"
+
+const loadSvg = () => import("circuit-to-svg")
+const importModule = createDynamicImporter({
+  "circuit-to-svg": loadSvg,
+  "circuit-to-svg@0.0.447": loadSvg,
+})
+
+const svg = await importModule("circuit-to-svg")
+```
+
+The factory infers each result type from its loader. Literal imports can be
+included by a bundler; install or pin the dependencies that those loaders use.
+Map keys are exact: the example's versioned key should match the installed
+version, and a request for any other version rejects. Bare names and versioned
+aliases must be declared separately when both should work.
+
+Each key loads lazily and caches its successful result. Concurrent requests
+share the pending load. A rejected loader clears that key's pending result so
+the next request retries the same loader. The factory maintains its own cache;
+it does not automatically add modules to the shared eager registry.
+
+Missing keys reject unless `createDynamicImporter(loaders, fallback)` receives
+an explicit fallback resolver. The fallback handles missing keys only; it is
+not called when a registered loader fails. The module map may contain custom
+specifier names as well as supported tscircuit packages.
+
+## Replace or extend default resolution
 
 ```ts
 import {
@@ -41,21 +91,12 @@ setDynamicImportResolver(createDynamicImporter({
 }))
 ```
 
-These literal imports are visible to the application's bundler. The resulting
-manifest is authoritative: a missing package or version throws locally, and a
-failed local loader never falls back to a CDN. Concurrent requests share one
-load; a failed load may be retried. A versioned request requires its exact key,
-so register both the bare name and explicit version when both should work.
-The factory infers each module's type from its loader.
+The default `importer` now delegates to this resolver. The map in this example
+has no fallback, so missing packages or versions reject locally. A custom
+resolver takes precedence over the default registry/CDN lookup.
 
-Resolver configuration applies to the current JavaScript realm. Configure
-browser windows and workers separately before their consumers execute. Modules
-can also be registered eagerly with `registerDynamicModule`; the default
-resolver looks up exact specifiers in that existing registry before loading
-remotely.
-
-Web applications can override one dependency while retaining normal resolution
-for the others:
+To override selected requests and retain default resolution for others, use
+the supplied `defaultResolver` callback:
 
 ```ts
 setDynamicImportResolver((specifier, defaultResolver) => {
@@ -63,13 +104,14 @@ setDynamicImportResolver((specifier, defaultResolver) => {
   return defaultResolver(specifier)
 })
 
-// Restore the default resolver:
+// Restore the default registry/CDN resolver.
 setDynamicImportResolver(undefined)
 ```
 
-`createDynamicImporter(loaders, fallback)` also accepts an explicit fallback
-resolver. Without a custom resolver, CDN URLs and fallback order are unchanged.
-Applications remain responsible for any requests made inside the supplied
-modules and for packaging their WASM, font, worker, and other runtime assets.
-A source entrypoint is available at `@tscircuit/internal-dynamic-import/source`
-for applications that bundle the TypeScript source.
+Registry and resolver configuration are shared within the current JavaScript
+realm. Configure each realm separately before requesting modules. This package
+controls module resolution; supplied modules remain responsible for their own
+requests and runtime assets, such as WASM or fonts.
+
+The `@tscircuit/internal-dynamic-import/source` entrypoint exposes TypeScript
+source for consumers that build their own bundle.

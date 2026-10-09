@@ -2,7 +2,7 @@ export type DynamicModuleResolver = (
   specifier: string,
 ) => unknown | PromiseLike<unknown>
 
-/** A replacement may delegate selectively to the unchanged default resolver. */
+/** A custom resolver can delegate to the default registry/CDN resolver. */
 export type DynamicImportResolver = (
   specifier: string,
   defaultResolver: DynamicModuleResolver,
@@ -15,7 +15,7 @@ declare global {
 export const getDynamicImportResolver = () =>
   globalThis.tscircuitDynamicImportResolver
 
-/** Configure before consumers mount; call separately in browser/worker realms. */
+/** Configure before requesting modules, separately in each JavaScript realm. */
 export function setDynamicImportResolver(
   resolver: DynamicImportResolver | undefined,
 ): void {
@@ -23,8 +23,9 @@ export function setDynamicImportResolver(
 }
 
 /**
- * An authoritative manifest of lazy bundled imports. Unknown/exact-version
- * misses reject locally. Generic callers can explicitly supply a fallback.
+ * Create an importer from exact specifier keys and lazy module loaders.
+ * Missing keys reject unless a fallback is supplied; loader failures retry
+ * through the same loader on the next request.
  */
 export function createDynamicImporter<
   TLoaders extends Record<string, () => unknown | PromiseLike<unknown>>,
