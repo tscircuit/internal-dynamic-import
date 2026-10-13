@@ -14,6 +14,8 @@ import { build } from "tsup"
 import ts from "typescript"
 
 const supportedModules = [
+  "jscad-to-step",
+  "jscad-to-parasolid",
   "circuit-json-to-3d-png",
   "circuit-json-to-bom-csv",
   "circuit-json-to-bpc",

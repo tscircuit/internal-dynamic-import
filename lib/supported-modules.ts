@@ -1,3 +1,5 @@
+import type * as JscadToStepModule from "./type-bundles/jscad-to-step"
+import type * as JscadToParasolidModule from "./type-bundles/jscad-to-parasolid"
 import type * as CircuitJsonTo3dPngModule from "./type-bundles/circuit-json-to-3d-png"
 import type * as CircuitJsonToBomCsvModule from "./type-bundles/circuit-json-to-bom-csv"
 import type * as CircuitJsonToBpcModule from "./type-bundles/circuit-json-to-bpc"
@@ -19,6 +21,8 @@ import type * as KicadToCircuitJsonModule from "./type-bundles/kicad-to-circuit-
 import type * as SchematicPlacementAnalysisModule from "./type-bundles/@tscircuit/circuit-json-schematic-placement-analysis"
 
 export const supportedModules = [
+  "jscad-to-step",
+  "jscad-to-parasolid",
   "circuit-json-to-3d-png",
   "circuit-json-to-bom-csv",
   "circuit-json-to-bpc",
@@ -46,6 +50,8 @@ export type SupportedModuleSpecifier =
   | `${SupportedModuleName}@${string}`
 
 export interface SupportedModuleMap {
+  "jscad-to-step": typeof JscadToStepModule
+  "jscad-to-parasolid": typeof JscadToParasolidModule
   "circuit-json-to-3d-png": typeof CircuitJsonTo3dPngModule
   "circuit-json-to-bom-csv": typeof CircuitJsonToBomCsvModule
   "circuit-json-to-bpc": typeof CircuitJsonToBpcModule
