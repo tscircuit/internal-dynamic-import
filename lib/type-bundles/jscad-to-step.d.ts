@@ -1,18 +1,24 @@
-import type { JscadOperation } from "jscad-planner"
+import { JscadOperation } from 'jscad-planner';
 
-type StepColorInput = number[] | string
+type StepColorInput = number[] | string;
+
 interface Geom3Like {
-  polygons: Array<{ vertices: any[] }>
-  transforms?: number[]
-  color?: StepColorInput
+    polygons: Array<{
+        vertices: any[];
+    }>;
+    transforms?: number[];
+    color?: StepColorInput;
 }
 interface RenderedModel {
-  geometries: Array<{ geom: Geom3Like; color?: StepColorInput }>
+    geometries: Array<{
+        geom: Geom3Like;
+        color?: StepColorInput;
+    }>;
 }
-export interface JscadToStepOptions {
-  mergeCoplanarFaces?: boolean
+interface JscadToStepOptions {
+    /** Merge adjacent coplanar polygons into faces with inner bounds for holes. Default: true. */
+    mergeCoplanarFaces?: boolean;
 }
-export declare function jscadToStep(
-  operation: JscadOperation | RenderedModel,
-  options?: JscadToStepOptions,
-): string
+declare function jscadToStep(operation: JscadOperation | RenderedModel, options?: JscadToStepOptions): string;
+
+export { type JscadToStepOptions, jscadToStep };
