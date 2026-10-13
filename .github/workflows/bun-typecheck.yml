@@ -24,3 +24,6 @@ jobs:
 
       - name: Run type check
         run: bun run typecheck
+
+      - name: Verify generated type bundles are up to date
+        run: git diff --exit-code -- lib/type-bundles
