@@ -26,6 +26,19 @@ analyzer uses its published `/dist/browser.js` bundle. Omitting a version
 requests `latest`; adding `@...` preserves the
 requested version or tag. Unsupported module names reject before a CDN import.
 
+To use a local JS CDN, set this window variable before requesting modules:
+
+```ts
+window.TSCIRCUIT_JSCDN_BASE_URL = "/jscdn"
+```
+
+The browser now imports `circuit-json-to-gerber` from
+`/jscdn/circuit-json-to-gerber/latest/+esm` on the page's origin. Absolute URLs
+and page-relative paths such as `./jscdn` also work. With this override, failed
+imports reject without falling back to a public CDN. Loading still uses native
+`import()`, so module dependencies resolve normally and no custom fetch hook is
+needed. Without the variable, the existing CDN behavior is unchanged.
+
 Supported-module declarations describe a recent package version, so the default
 importer's types are approximate when loading a different runtime version.
 `getImportUrl`, `getImportUrls`, and `supportedModules` expose the default URL
