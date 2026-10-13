@@ -59,7 +59,7 @@
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "@tscircuit/circuit-json-schematic-placement-analysis": "https://jscdn.tscircuit.com/@tscircuit/circuit-json-schematic-placement-analysis/0.0.46.tgz",
-    "jscad-to-step": "latest",
+    "jscad-to-step": "0.0.11",
     "jscad-to-parasolid": "0.0.4"
   }
 }
