@@ -1,13 +1,22 @@
-import { CircuitJson } from 'circuit-json';
-import { CircuitJsonUtilObjects, cju } from '@tscircuit/circuit-json-util';
+import { CircuitJson, Point } from 'circuit-json';
 import { KicadSch, KicadPcb, SchematicSymbol } from 'kicadts';
+import { CircuitJsonUtilObjects, cju } from '@tscircuit/circuit-json-util';
 import { Matrix } from 'transformation-matrix';
 
 type PaperSize = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
 interface PaperDimensions {
+    /** Effective page width after orientation, in millimeters. */
     width: number;
+    /** Effective page height after orientation, in millimeters. */
     height: number;
-    name: PaperSize;
+    name: PaperSize | string;
+    /** Raw custom dimensions written to KiCad's `(paper width height)` form. */
+    customSize?: {
+        width: number;
+        height: number;
+    };
+    /** Whether KiCad writes the page with its `portrait` flag. */
+    isPortrait?: boolean;
 }
 
 type SchematicPortId = string;
@@ -57,6 +66,25 @@ interface ConverterContext {
     c2kMatPcb?: Matrix;
     /** Selected paper size for schematic */
     schematicPaperSize?: PaperDimensions;
+    /**
+     * UUID written as this file's own top-level `(uuid ...)`. When set,
+     * InitializeSchematicStage uses it instead of generating a random one so the
+     * root uuid can be shared across the root file, child files, sheet nodes and
+     * the `.kicad_pro`.
+     */
+    schematicFileUuid?: string;
+    /**
+     * Prefix used for every symbol `(instances ... (path ...))` in this file.
+     * Root/legacy files use `/<rootUuid>`; child sheet files use
+     * `/<rootUuid>/<sheetNodeUuid>` (KiCad requires the root uuid first).
+     */
+    symbolInstancePathPrefix?: string;
+    /**
+     * Lib id for each schematic component whose pin numbering differs from an
+     * earlier instance of the same library symbol, keyed by
+     * schematic_component_id. Set by AddLibrarySymbolsStage.
+     */
+    schematicComponentLibraryIds?: Map<string, string>;
     pinPositions?: Map<SchematicPortId, {
         x: number;
         y: number;
@@ -68,6 +96,7 @@ interface ConverterContext {
     }>;
     pcbNetMap?: Map<string, PcbNetInfo>;
     numLayers?: number;
+    edgeCutsWidth?: number;
     /** Project name used as the .3dshapes folder for user-provided 3D models */
     projectName?: string;
     /** CDN URLs of 3D models needed for this PCB (collected during footprint stage) */
@@ -93,20 +122,125 @@ declare abstract class ConverterStage<Input, Output> {
     getOutput(): Output;
 }
 
+/** Fields common to the root page and every child schematic file. */
+interface SchematicSheetPlanEntryBase {
+    /** Value written to the KiCad `(property "Sheetname" ...)` */
+    sheetName: string;
+    /** Sanitized, unique file stem (no extension) used to derive `filename` */
+    fileBaseName: string;
+    /** File name for this sheet's `.kicad_sch` (root filename is overridden by the caller) */
+    filename: string;
+    /** KiCad page number ("1" for root, "2".. for children) */
+    pageNumber: string;
+    /** UUID written as this file's own top-level `(uuid ...)` */
+    fileUuid: string;
+}
+/** The top-level root schematic (page "1"); it holds the `(sheet)` nodes. */
+interface RootSchematicSheetPlanEntry extends SchematicSheetPlanEntryBase {
+    schematicSheetId: null;
+}
+/**
+ * One circuit-json `schematic_sheet`, emitted as a `(sheet)` node on the root
+ * page plus its own child `.kicad_sch` file.
+ */
+interface ChildSchematicSheetPlanEntry extends SchematicSheetPlanEntryBase {
+    /** circuit-json schematic_sheet_id this file represents */
+    schematicSheetId: string;
+    /**
+     * UUID of the `(sheet)` node placed on the root page. It is the second segment
+     * of the symbol instance path for symbols on this sheet (`/<rootUuid>/<sheetNodeUuid>`).
+     */
+    sheetNodeUuid: string;
+}
+/**
+ * Blueprint of the KiCad schematic files to emit for one circuit-json input:
+ * the root `.kicad_sch` plus one child `.kicad_sch` per `schematic_sheet`, each
+ * with the UUIDs, filename, and page number KiCad needs. Computed up front (with
+ * no file content) so the schematic converter and the `.kicad_pro` converter
+ * agree on the same identifiers.
+ */
+interface SchematicSheetPlan {
+    /**
+     * UUID of the root schematic file. Every symbol instance path begins with
+     * this uuid (KiCad requirement), so it is shared by the root file, the child
+     * files, the `(sheet)` nodes, and the `.kicad_pro` sheets list.
+     */
+    rootUuid: string;
+    root: RootSchematicSheetPlanEntry;
+    children: ChildSchematicSheetPlanEntry[];
+    /** True when the design has `schematic_sheet`s and must be emitted as a hierarchy */
+    isHierarchical: boolean;
+}
+
+interface KicadSchematicTitleBlockMetadata {
+    company?: string;
+    comments?: Array<{
+        index: number;
+        text: string;
+    }>;
+    date?: string;
+    revision?: string;
+    title?: string;
+}
+
+interface KicadSchFile {
+    filename: string;
+    content: string;
+}
+interface KicadSchFileOutputOptions {
+    schematicFilename: string;
+}
+interface CircuitJsonToKicadSchConverterOptions {
+    paperSize?: PaperDimensions;
+    schematicSheets?: KicadSchematicSheetOptions[];
+    titleBlock?: KicadSchematicTitleBlockMetadata;
+}
+interface KicadSchematicSheetOptions {
+    /** Position of Circuit JSON (0, 0) on the KiCad page, in millimeters. */
+    circuitOrigin: Point;
+    /** Geometry of this child sheet's hierarchy node on the root page. */
+    hierarchyNode?: {
+        position: Point;
+        size: {
+            height: number;
+            width: number;
+        };
+    };
+    /** Omit for a standalone schematic or the root sheet. */
+    schematicSheetId?: string;
+}
 declare class CircuitJsonToKicadSchConverter {
     ctx: ConverterContext;
     pipeline: ConverterStage<CircuitJson, KicadSch>[];
     currentStageIndex: number;
     finished: boolean;
+    circuitJson: CircuitJson;
+    schematicSheetPlan: SchematicSheetPlan;
+    private files;
+    private built;
+    private readonly options;
     get currentStage(): ConverterStage<CircuitJson, KicadSch> | undefined;
-    constructor(circuitJson: CircuitJson);
+    constructor(circuitJson: CircuitJson, options?: CircuitJsonToKicadSchConverterOptions);
     step(): void;
     runUntilFinished(): void;
     getOutput(): KicadSch;
     /**
-     * Get the output as a string
+     * Get the (root) schematic as a string.
      */
     getOutputString(): string;
+    /**
+     * Returns every KiCad schematic file produced by this converter.
+     *
+     * For a design with no `schematic_sheet` elements this is a single root file.
+     * For a hierarchical design it is the root file (named by
+     * `options.schematicFilename`) followed by one child `.kicad_sch` per sheet,
+     * each named after its sheet and referenced by the root via `Sheetfile`.
+     */
+    getOutputFiles(options: KicadSchFileOutputOptions): KicadSchFile[];
+    /** Builds the root + child `.kicad_sch` files for a hierarchical design. */
+    private buildAll;
+    /** Builds one child/root `.kicad_sch` for a sheet, run to completion. */
+    private buildSheetFile;
 }
 
 interface CircuitJsonToKicadPcbOptions {
@@ -121,6 +255,11 @@ interface CircuitJsonToKicadPcbOptions {
      * e.g. "index" → "3dmodels/index.3dshapes/{filename}"
      */
     projectName?: string;
+    /**
+     * Stroke width in millimetres for generated Edge.Cuts graphics.
+     * Defaults to 0.1 mm when the source format does not provide one.
+     */
+    edgeCutsWidth?: number;
 }
 declare class CircuitJsonToKicadPcbConverter {
     ctx: ConverterContext;
@@ -147,6 +286,12 @@ interface CircuitJsonToKicadProOptions {
     projectName?: string;
     schematicFilename?: string;
     pcbFilename?: string;
+    /**
+     * Sheet plan produced by CircuitJsonToKicadSchConverter. When provided, the
+     * project's `sheets` list uses the same root/sheet-node UUIDs so the
+     * `.kicad_pro` stays consistent with the generated `.kicad_sch` hierarchy.
+     */
+    schematicSheetPlan?: SchematicSheetPlan;
 }
 interface KicadProNetClass {
     bus_width?: number;
@@ -259,6 +404,24 @@ declare class CircuitJsonToKicadProConverter {
     runUntilFinished(): void;
     getOutput(): KicadProProject;
     getOutputString(): string;
+}
+
+interface CircuitJsonToKicadModOptions {
+    libraryName?: string;
+    footprintLibraryName?: string;
+    footprintName?: string;
+}
+declare class CircuitJsonToKicadModConverter {
+    private readonly libraryConverter;
+    private readonly footprintName?;
+    constructor(circuitJson: CircuitJson, options?: CircuitJsonToKicadModOptions);
+    get finished(): boolean;
+    get currentStage(): ConverterStage<CircuitJson, KicadLibraryOutput> | undefined;
+    step(): void;
+    runUntilFinished(): void;
+    getOutput(): FootprintEntry;
+    getOutputString(): string;
+    getModel3dSourcePaths(): string[];
 }
 
 type ModelFetchResponse = {
@@ -389,4 +552,4 @@ declare class KicadLibraryConverter {
     getOutput(): KicadLibraryConverterOutput;
 }
 
-export { CircuitJsonToKicadLibraryConverter, CircuitJsonToKicadPcbConverter, CircuitJsonToKicadProConverter, CircuitJsonToKicadSchConverter, type FootprintEntry, type Kicad3dModelLoadError, KicadLibraryConverter, type KicadLibraryConverterOptions, type KicadLibraryConverterOutput, type KicadLibraryOutput, type LoadedKicad3dModelFile, type ResolveAndLoadKicad3dModelFilesOptions, type SymbolEntry, resolveAndLoadKicad3dModelFiles };
+export { CircuitJsonToKicadLibraryConverter, CircuitJsonToKicadModConverter, CircuitJsonToKicadPcbConverter, type CircuitJsonToKicadPcbOptions, CircuitJsonToKicadProConverter, CircuitJsonToKicadSchConverter, type CircuitJsonToKicadSchConverterOptions, type FootprintEntry, type Kicad3dModelLoadError, KicadLibraryConverter, type KicadLibraryConverterOptions, type KicadLibraryConverterOutput, type KicadLibraryOutput, type KicadSchFile, type KicadSchFileOutputOptions, type KicadSchematicSheetOptions, type LoadedKicad3dModelFile, type ResolveAndLoadKicad3dModelFilesOptions, type SymbolEntry, resolveAndLoadKicad3dModelFiles };
