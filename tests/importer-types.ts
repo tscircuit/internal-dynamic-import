@@ -16,6 +16,14 @@ async function verifyTyping() {
   const kicad = await importer("circuit-json-to-kicad@0.0.91")
   kicad.CircuitJsonToKicadProConverter
 
+  const latestKicad = await importer("circuit-json-to-kicad")
+  const schematic = new latestKicad.CircuitJsonToKicadSchConverter([])
+  const schematicFiles: { filename: string; content: string }[] =
+    schematic.getOutputFiles({ schematicFilename: "board.kicad_sch" })
+  void schematicFiles
+  // @ts-expect-error schematic output filenames must be strings
+  schematic.getOutputFiles({ schematicFilename: 123 })
+
   const svg = await importer("circuit-to-svg")
   svg.convertCircuitJsonToPcbSvg
 
