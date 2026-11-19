@@ -1,5 +1,6 @@
 {
   "name": "@tscircuit/internal-dynamic-import",
+  "license": "MIT",
   "version": "0.0.18",
   "repository": {
     "type": "git",
