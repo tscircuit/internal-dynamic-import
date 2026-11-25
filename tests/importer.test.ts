@@ -7,6 +7,7 @@ import importer, {
   registerDynamicModule,
   supportedModules,
 } from "lib/index"
+import { createDefaultDynamicImportResolver } from "lib/create-importer"
 
 test("supportedModules includes all requested entrypoints", () => {
   expect(supportedModules).toContain("circuit-json-to-3d-png")
@@ -110,6 +111,24 @@ test("registerDynamicModule stores loaded modules by module name", () => {
       globalThis.tscircuitDynamicModules?.["circuit-json-to-gltf"] ===
         gltfModule,
     ).toBe(true)
+  } finally {
+    globalThis.tscircuitDynamicModules = originalRegistry
+  }
+})
+
+test("registerDynamicModule stores the __proto__ key as an own entry", async () => {
+  const originalRegistry = globalThis.tscircuitDynamicModules
+  const localModule = { local: true }
+
+  try {
+    globalThis.tscircuitDynamicModules = undefined
+    registerDynamicModule("__proto__", localModule)
+
+    expect(Object.hasOwn(getDynamicModuleRegistry(), "__proto__")).toBe(true)
+    const resolve = createDefaultDynamicImportResolver(async () => {
+      throw new Error("unexpected network import")
+    })
+    expect(await resolve("__proto__")).toBe(localModule)
   } finally {
     globalThis.tscircuitDynamicModules = originalRegistry
   }

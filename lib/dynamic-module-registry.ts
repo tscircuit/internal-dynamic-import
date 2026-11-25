@@ -32,6 +32,11 @@ export function registerDynamicModule<TModule>(
   name: string,
   mod: TModule,
 ): TModule {
-  getDynamicModuleRegistry()[name] = mod
+  Object.defineProperty(getDynamicModuleRegistry(), name, {
+    value: mod,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  })
   return mod
 }

@@ -90,10 +90,12 @@ import {
   setDynamicImportResolver,
 } from "@tscircuit/internal-dynamic-import"
 
-setDynamicImportResolver(createDynamicImporter({
-  "circuit-json-to-bom-csv": () => import("circuit-json-to-bom-csv"),
-  "circuit-to-svg": () => import("circuit-to-svg"),
-}))
+setDynamicImportResolver(
+  createDynamicImporter({
+    "circuit-json-to-bom-csv": () => import("circuit-json-to-bom-csv"),
+    "circuit-to-svg": () => import("circuit-to-svg"),
+  }),
+)
 ```
 
 The default `importer` now delegates to this resolver. The map in this example
